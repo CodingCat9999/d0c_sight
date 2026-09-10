@@ -27,7 +27,11 @@
 
 3. GitHub Actions 버전을 기억으로 적었다면 전부 틀렸을 것이다.
    `setup-uv` 는 v10, `checkout` 은 v7 이었다(v5/v4 로 적을 뻔했다).
-   → 외부 버전은 항상 조회하고 적는다.
+   그런데 조회만으로도 부족했다. `releases/latest` 가 알려준 `v10.0.1` 을 보고
+   `@v10` 으로 적었는데 CI 가 "unable to find version v10" 으로 죽었다.
+   setup-uv 는 major alias 태그를 v7 까지만 유지하고 v8~v10 에는 만들지 않는다.
+   → 릴리스 태그 이름과 실제로 참조 가능한 ref 는 다르다. 쓰려는 ref 가
+     존재하는지를 `git ls-remote --tags` 로 따로 확인한다.
 
 **변이 검증이 실제로 죽은 코드를 잡았다.**
 
