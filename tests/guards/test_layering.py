@@ -109,3 +109,23 @@ def test_allows_third_party_and_stdlib_imports(tmp_path: Path) -> None:
 
     assert count_modules(tmp_path) == 1
     assert find_violations(tmp_path) == []
+
+
+def test_catches_violation_inside_type_checking_block(tmp_path: Path) -> None:
+    """타입 전용 import 로 계층을 우회할 수 없어야 한다.
+
+    ruff 의 TC001 규칙이 first-party import 를 TYPE_CHECKING 블록으로 밀어넣기
+    때문에, 가드가 그 블록을 보지 않으면 규칙을 켠 순간 조용히 무력해진다.
+    """
+    _write(
+        tmp_path,
+        "domain/models.py",
+        "from typing import TYPE_CHECKING\n\n"
+        "if TYPE_CHECKING:\n"
+        "    from d0c_sight.pipeline import chunk\n",
+    )
+
+    violations = find_violations(tmp_path)
+
+    assert len(violations) == 1
+    assert violations[0].imported_layer == "pipeline"
