@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# 가상환경
+.venv/
+venv/
+
+# 도구 캐시
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 데이터 — 수집한 원본 문서, 중간 산출물, 벡터 인덱스
+# 전부 재현 가능해야 한다. 재현할 수 없는 것이 여기 들어가면 그것은 설계 결함이다.
+data/
+
+# 시크릿
+.env
+.env.local
+
+# OS / 에디터
+.DS_Store
+.idea/
+.vscode/
+*.swp
