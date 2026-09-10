@@ -81,13 +81,29 @@ class Section:
 
 @dataclass(frozen=True, slots=True)
 class Document:
-    """소스에서 가져와 구조화한 문서 하나."""
+    """소스에서 가져와 구조화한 문서 하나.
 
+    source_id 와 url 을 문서가 들고 있는 이유는, 상위 계층이 어느 소스에서 왔는지
+    묻지 않고도 근거를 기록할 수 있게 하기 위해서다. 이것이 없으면 청킹 계층이
+    구현체를 직접 알아야 한다.
+    """
+
+    source_id: str
     doc_id: str
     title: str
     version: DocVersion
     url: str
     sections: tuple[Section, ...]
+
+    def ref_for(self, section: Section) -> SourceRef:
+        """섹션 하나에 대한 근거 참조. URL 앵커는 여기서 한 번만 조립된다."""
+        return SourceRef(
+            source_id=self.source_id,
+            doc_id=self.doc_id,
+            section_id=section.section_id,
+            version=self.version,
+            url=f"{self.url}#{section.section_id}",
+        )
 
 
 @dataclass(frozen=True, slots=True)
