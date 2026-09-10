@@ -1,0 +1,33 @@
+# 커밋 전 게이트. CI 와 동일한 도구를 같은 설정으로 돌린다(BRIEF §6.3).
+# pytest 는 여기 넣지 않는다 — 느려지면 --no-verify 로 우회하게 되고,
+# 우회되는 게이트는 없는 게이트다. 테스트는 CI 가 강제한다.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-added-large-files
+        # 수집한 원본 문서가 실수로 커밋되는 것을 막는다. data/ 는 gitignore 되어
+        # 있지만 -f 로 강제 add 하면 통과한다. 여기가 두 번째 층이다.
+        args: [--maxkb=500]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.6
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy --strict
+        entry: uv run mypy
+        language: system
+        types: [python]
+        pass_filenames: false
