@@ -1,0 +1,86 @@
+[project]
+name = "d0c-sight"
+version = "0.1.0"
+description = "근거를 추적할 수 있는 인프라 에러 진단 시스템"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "mypy>=1.13",
+  "pre-commit>=4.0",
+  "pytest>=8.3",
+  "ruff>=0.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/d0c_sight"]
+
+
+# ─────────────────────────────────────────────────────────────
+# ruff — lint + format
+# ─────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "F",    # pyflakes
+  "E",    # pycodestyle error
+  "W",    # pycodestyle warning
+  "I",    # isort
+  "N",    # pep8-naming
+  "UP",   # pyupgrade
+  "B",    # bugbear
+  "A",    # builtin shadowing
+  "C4",   # comprehensions
+  "SIM",  # simplify
+  "PTH",  # pathlib 강제 — os.path 혼용을 막는다
+  "ARG",  # 미사용 인자
+  "TC",   # 타입 전용 import 분리
+  "RUF",
+]
+ignore = [
+  "E501",   # 줄 길이는 formatter가 처리한다
+  "TC003",  # stdlib 을 TYPE_CHECKING 으로 옮기는 실익이 없다. TC001/TC002 는 유지
+]
+
+[tool.ruff.lint.per-file-ignores]
+# 테스트에서는 private 접근과 매직값이 정당하다
+"tests/**" = ["ARG001", "ARG002"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["d0c_sight"]
+
+
+# ─────────────────────────────────────────────────────────────
+# mypy — 그린필드에서 strict를 켜는 비용이 가장 싸다 (BRIEF §6.3)
+# ─────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.12"
+files = ["src", "tests"]
+strict = true
+warn_unreachable = true
+warn_no_return = true
+pretty = true
+show_error_codes = true
+
+
+# ─────────────────────────────────────────────────────────────
+# pytest
+#
+# 테스트 0개는 실패다. pytest는 미수집 시 exit code 5를 내지만
+# 그것만으로는 CI가 초록으로 남을 수 있어 conftest 훅으로도 막는다.
+# 두 층 모두 tests/guards/ 에 짝 테스트가 있다. (BRIEF §6.3, §6.4)
+# ─────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+xfail_strict = true
