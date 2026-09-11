@@ -197,7 +197,15 @@ def main() -> int:
     print(f"http://127.0.0.1:{PORT}  (Ctrl+C 로 종료)")
     import os
 
-    with ThreadingHTTPServer(("127.0.0.1", PORT), Handler) as httpd:
+    try:
+        httpd = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    except OSError as exc:
+        # 이전 서버가 살아 있으면 옛 데이터를 보게 된다. 실제로 그 일이 있었다 —
+        # 평가셋을 저장한 뒤에도 화면에 0문항이 떠서 저장이 실패한 줄 알았다.
+        print(f"포트 {PORT} 를 열 수 없다: {exc}")
+        print(f"이미 떠 있는 서버가 있을 수 있다: lsof -ti:{PORT} | xargs kill")
+        return 1
+    with httpd:
         if not os.environ.get("D0C_NO_BROWSER"):
             webbrowser.open(f"http://127.0.0.1:{PORT}")
         try:

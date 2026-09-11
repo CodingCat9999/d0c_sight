@@ -145,8 +145,16 @@
       "question": "임시 테이블이 있는 세션 때문에 autovacuum 이 막히고 XID wraparound 로 간다",
       "version": "18.6",
       "case_type": "error",
-      "search_axis": "semantic_only",
+      "search_axis": "multi_chunk",
       "gold_chunks": [
+        {
+          "chunk_id": "routine-vacuuming#AUTOVACUUM:8",
+          "content_sha256": "5b1249e11827c36e"
+        },
+        {
+          "chunk_id": "sql-createtable#id-1.9.3.85.6:0",
+          "content_sha256": "bdc141bf0982142f"
+        },
         {
           "chunk_id": "routine-vacuuming#VACUUM-BASICS:0",
           "content_sha256": "bf13f528e966cbd0"
@@ -154,7 +162,7 @@
       ],
       "split": "holdout",
       "provenance": "mailing_list",
-      "rationale": "문서가 이 구체적 시나리오를 직접 다루지 않는다. 근거 부족 판정이 나올 수도 있는 경계 케이스.",
+      "rationale": "**답할 수 있는 질문이다.** 처음에는 '문서가 직접 다루지 않는 경계 케이스' 로 넣었으나 실측해보니 근거가 명확히 있다 — routine-vacuuming 과 sql-createtable 이 모두 'autovacuum 은 임시 테이블에 접근할 수 없다' 를 명시한다. 근거 부족 판정이 나오면 그것은 정상이 아니라 개선 대상이다. 문항을 쓸 때 추측한 것을 실측으로 확인해야 한다는 사례이기도 하다. 세 청크에 흩어져 있어 multi_chunk 축이다.",
       "source_url": "https://www.postgresql.org/message-id/0A3221C70F24FB45833433255569204D1F8A4DC6@G01JPEXMBYT05",
       "traps": [],
       "judge_items": [],

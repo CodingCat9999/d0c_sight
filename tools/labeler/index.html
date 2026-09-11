@@ -101,6 +101,12 @@
 
 <section id="score">
   <div id="scoreNav" class="meta"></div>
+  <div class="meta" style="margin:6px 0">
+    순서를 섞어 보여준다 — 순서대로 채점하면 뒤로 갈수록 기준이 흔들린다.
+    <button id="reshuffle">다시 섞기</button>
+    <b>애매하면 그 애매함 자체를 메모에 남길 것.</b>
+    judge 가 틀린 것과 항목이 애매한 것을 구별하는 근거가 된다.
+  </div>
   <div class="cols">
     <div class="col">
       <h2>질문</h2><div id="sc_q"></div>
@@ -109,7 +115,8 @@
     <div class="col">
       <h2>모델 답변</h2><div id="sc_answer"></div>
       <h2>판정</h2><div id="sc_items"></div>
-      <label>판단 근거 메모</label><textarea id="sc_note"></textarea>
+        <label>판단 근거 메모 — 애매하면 "왜 애매한지" 를 쓸 것</label>
+      <textarea id="sc_note" placeholder="예: 예/아니오를 못 정하겠다. 주장이 근거를 조금 넘어서긴 하는데 상식 수준이라 문제라 하기 애매하다."></textarea>
       <button id="sc_save">저장하고 다음</button>
     </div>
   </div>
@@ -137,6 +144,7 @@ document.querySelectorAll("nav button[data-t]").forEach(b => b.onclick = () => {
   document.querySelectorAll("section").forEach(x => x.classList.remove("on"));
   b.classList.add("on"); $("#" + b.dataset.t).classList.add("on");
   if (b.dataset.t === "score") initScoring();
+  if (b.dataset.t === "score") $("#reshuffle").onclick = () => { scoreCases = shuffle(scoreCases); scoreIdx = 0; renderScore(); };
   if (b.dataset.t === "compare") loadRuns();
 });
 
@@ -263,17 +271,31 @@ async function initScoring() {
   if (!runs.length) { $("#scoreNav").textContent = "채점할 실행 결과가 없다 (evalset/runs/*.json)"; return; }
   const run = await api("/api/run?id=" + encodeURIComponent(runs[runs.length - 1]));
   humanScores = await api("/api/human-scores");
-  scoreCases = run.cases; scoreIdx = 0;
+  // 무작위 순서. 채점 기준이 순서에 끌려가지 않게 한다.
+  scoreCases = shuffle([...run.cases]); scoreIdx = 0;
   $("#scoreNav").innerHTML = `실행 <b>${runs[runs.length - 1]}</b> · ${run.model} ·
     ${run.cases.length}문항 · 완전성 ${run.complete}`;
   renderScore();
+}
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 function renderScore() {
   const cr = scoreCases[scoreIdx];
   if (!cr) return;
   const c = (evalset.cases || []).find(x => x.case_id === cr.case_id) || {};
   const d = cr.diagnosis?.diagnosis || {};
-  $("#sc_q").innerHTML = `<b>${cr.case_id}</b> (${scoreIdx + 1}/${scoreCases.length})<br>${esc(c.question)}`;
+  const done = scoreCases.filter(x => {
+    const s = humanScores[x.case_id] || {};
+    return Object.keys(s).some(k => !k.startsWith("_"));
+  }).length;
+  $("#sc_q").innerHTML = `<b>${cr.case_id}</b> (${scoreIdx + 1}/${scoreCases.length} · 채점완료 ${done})
+    <button onclick="jump(-1)">◀</button><button onclick="jump(1)">▶</button>
+    <br>${esc(c.question)}`;
   $("#sc_chunks").innerHTML = (c.gold_chunks || [])
     .map(g => `<div class="chunk"><b>${g.chunk_id}</b></div>`).join("");
   $("#sc_answer").innerHTML = `<div class="meta">insufficient_cause: ${cr.insufficient_cause ?? "-"}</div>`
@@ -289,6 +311,7 @@ function renderScore() {
     </div>`).join("");
   $("#sc_note").value = saved._note || "";
 }
+window.jump = d => { scoreIdx = Math.max(0, Math.min(scoreCases.length - 1, scoreIdx + d)); renderScore(); };
 window.setScore = (item, val) => {
   const id = scoreCases[scoreIdx].case_id;
   humanScores[id] = { ...(humanScores[id] || {}), [item]: val };
