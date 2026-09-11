@@ -25,7 +25,9 @@ ALLOWED_IMPORTS: dict[str, frozenset[str]] = {
     "domain": frozenset(),
     "sources": frozenset({"domain"}),
     "pipeline": frozenset({"domain", "sources"}),
-    "cli": frozenset({"domain", "sources", "pipeline"}),
+    # llm 은 청크가 어디서 왔는지 알 필요가 없다. sources 도 pipeline 도 import 하지 않는다.
+    "llm": frozenset({"domain"}),
+    "cli": frozenset({"domain", "sources", "pipeline", "llm"}),
 }
 
 
