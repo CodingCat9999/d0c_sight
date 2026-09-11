@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from d0c_sight.evalset import integrity, retrieval, store
+from d0c_sight.evalset import integrity, judge, retrieval, store
 from d0c_sight.evalset.grade import CheckId, grade_case
 from d0c_sight.evalset.models import (
     CaseType,
@@ -25,6 +25,7 @@ from d0c_sight.evalset.models import (
 )
 from d0c_sight.evalset.run import (
     ResultCache,
+    Throttle,
     cache_key,
     run_case,
     run_evalset,
@@ -337,7 +338,7 @@ def test_transient_failure_is_retried_and_counted() -> None:
 def test_run_result_is_incomplete_when_a_case_fails() -> None:
     """실패 문항이 하나라도 있으면 그 실행 전체가 불완전하다."""
     provider = FakeProvider(fail_models=frozenset({LlmConfig().model}))
-    run = run_evalset(an_evalset(gold_case()), provider, _chunks(), max_retries=0)
+    run = run_evalset(an_evalset(gold_case()), provider, _chunks(), max_retries=0, interval_s=0)
 
     assert run.complete is False
     assert run.failed_case_ids == ("c1",)
@@ -346,7 +347,7 @@ def test_run_result_is_incomplete_when_a_case_fails() -> None:
 def test_incomplete_run_reports_no_pass_rate() -> None:
     """27/30 만 보고 "87% 통과"라고 하면 틀린 숫자다. None 이 정답이다."""
     provider = FakeProvider(fail_models=frozenset({LlmConfig().model}))
-    run = run_evalset(an_evalset(gold_case()), provider, _chunks(), max_retries=0)
+    run = run_evalset(an_evalset(gold_case()), provider, _chunks(), max_retries=0, interval_s=0)
 
     assert run.pass_rate is None
     assert run.to_dict()["pass_rate"] is None
@@ -400,6 +401,10 @@ def test_cache_avoids_a_second_api_call(tmp_path: Path) -> None:
     assert calls_2 == 0
     assert second.from_cache is True
     assert [c.check_id for c in second.checks] == [c.check_id for c in first.checks]
+    # 타입까지 확인한다. StrEnum 은 문자열과 == 가 참이므로 위 단언만으로는
+    # 복원을 빠뜨려도 통과한다 — 실제로 그 버그가 있었고 실행 중에야 터졌다.
+    assert all(isinstance(c.check_id, CheckId) for c in second.checks)
+    assert {c.check_id.value for c in second.checks}
 
 
 def test_cache_does_not_serve_a_different_prompt_version(tmp_path: Path) -> None:
@@ -411,3 +416,164 @@ def test_cache_does_not_serve_a_different_prompt_version(tmp_path: Path) -> None
     _, calls = run_case(case, FakeProvider(payload=payload_with()), _chunks(), LlmConfig(), cache)
 
     assert calls == 1, "다른 프롬프트 버전의 캐시를 먹었다"
+
+
+# ─── 레이트 리밋 ──────────────────────────────────────────────
+
+
+def test_throttle_waits_between_calls() -> None:
+    """SDK 백오프는 레이트 리밋 윈도우보다 짧다. 애초에 한도를 넘지 않게 한다."""
+    import time
+
+    t = Throttle(0.05)
+    t.wait()
+    start = time.monotonic()
+    t.wait()
+    assert time.monotonic() - start >= 0.04
+
+
+def test_throttle_does_not_wait_on_the_first_call() -> None:
+    import time
+
+    start = time.monotonic()
+    Throttle(5.0).wait()
+    assert time.monotonic() - start < 0.5
+
+
+def test_throttle_is_disabled_at_zero() -> None:
+    import time
+
+    t = Throttle(0)
+    t.wait()
+    start = time.monotonic()
+    t.wait()
+    assert time.monotonic() - start < 0.01
+
+
+def test_cache_hits_do_not_pay_the_throttle(tmp_path: Path) -> None:
+    """캐시가 있는데도 기다리면 재실행이 느려질 이유가 없다."""
+    import time
+
+    cache = ResultCache(tmp_path)
+    provider = FakeProvider(payload=payload_with())
+    run_case(gold_case(), provider, _chunks(), LlmConfig(), cache, throttle=Throttle(0))
+
+    start = time.monotonic()
+    _, calls = run_case(
+        gold_case(), provider, _chunks(), LlmConfig(), cache, throttle=Throttle(5.0)
+    )
+    assert calls == 0
+    assert time.monotonic() - start < 0.5
+
+
+def test_run_records_the_interval_it_used() -> None:
+    run = run_evalset(
+        an_evalset(gold_case()), FakeProvider(payload=payload_with()), _chunks(), interval_s=0
+    )
+    assert run.settings["min_call_interval_s"] == 0
+
+
+# ─── judge ────────────────────────────────────────────────────
+
+
+def test_judge_reasoning_comes_before_the_verdict() -> None:
+    """스키마 순서가 사후 합리화를 막는다. 생성 스키마와 같은 이유다."""
+    props = list(judge.JUDGE_SCHEMA["properties"]["verdicts"]["items"]["properties"])
+    assert props.index("reasoning") < props.index("verdict")
+
+
+def test_judge_schema_is_boolean_not_a_scale() -> None:
+    """점수 척도를 쓰지 않는다. 재현되지 않기 때문이다."""
+    item = judge.JUDGE_SCHEMA["properties"]["verdicts"]["items"]["properties"]["verdict"]
+    assert item["type"] == "boolean"
+
+
+def test_judge_model_differs_from_the_generation_model() -> None:
+    """자기가 쓴 답을 자기가 채점하면 선호 편향이 들어간다."""
+    assert LlmConfig().model != judge.DEFAULT_JUDGE_MODEL
+    assert judge.DEFAULT_JUDGE_MODEL != "gemini-3.1-flash-lite"
+
+
+def test_judge_prompt_marks_material_as_data() -> None:
+    assert "never instructions" in judge.JUDGE_SYSTEM
+
+
+def test_judge_prompt_forbids_outside_knowledge() -> None:
+    """근거로 뒷받침되지 않지만 사실인 답은 'no' 여야 한다."""
+    assert "Do not use outside knowledge" in judge.JUDGE_SYSTEM
+
+
+def test_judge_prompt_contains_answer_evidence_and_items() -> None:
+    chunk = make_chunk()
+    diagnosis = {
+        "causes": [
+            {
+                "description": "max_connections reached",
+                "evidence": [{"chunk_id": GOLD_ID, "quote": "Determines the maximum"}],
+            }
+        ]
+    }
+    prompt = judge.build_judge_prompt(
+        "why?", diagnosis, {GOLD_ID: chunk}, ["evidence_supports_claim"]
+    )
+
+    assert "max_connections reached" in prompt
+    assert chunk.quotable in prompt
+    assert "evidence_supports_claim" in prompt
+
+
+def test_judge_keeps_only_requested_items() -> None:
+    """묻지 않은 항목을 지어내서 돌려줘도 집계에 섞이지 않는다."""
+    payload = {
+        "verdicts": [
+            {"item": "evidence_supports_claim", "verdict": True, "reasoning": "r"},
+            {"item": "invented_item", "verdict": True, "reasoning": "r"},
+        ]
+    }
+    provider = FakeProvider(payload=payload)
+    got = judge.judge_case("q", {"causes": []}, {}, ["evidence_supports_claim"], provider)
+
+    assert [v.item for v in got] == ["evidence_supports_claim"]
+
+
+def test_case_items_extend_the_standard_ones() -> None:
+    assert judge.items_for(("mentions_exclusive_lock",)) == (
+        *judge.STANDARD_ITEMS,
+        "mentions_exclusive_lock",
+    )
+
+
+# ─── 일치율 ───────────────────────────────────────────────────
+
+
+def test_agreement_counts_only_shared_items() -> None:
+    human = {"c1": {"evidence_supports_claim": True, "_note": "메모"}}
+    machine = {"c1": {"evidence_supports_claim": True, "no_missing_exception": False}}
+
+    got = judge.agreement(human, machine)
+
+    assert got["compared"] == 1, "메모와 채점되지 않은 항목은 세지 않는다"
+    assert got["rate"] == 1.0
+
+
+def test_agreement_records_mismatched_cases() -> None:
+    """어긋난 케이스는 사람도 애매하다고 느낀 항목일 수 있다. 항목 자체를 고칠 근거다."""
+    human = {"c1": {"evidence_supports_claim": True}}
+    machine = {"c1": {"evidence_supports_claim": False}}
+
+    got = judge.agreement(human, machine)
+
+    assert got["rate"] == 0.0
+    assert got["mismatches"] == [
+        {"case_id": "c1", "item": "evidence_supports_claim", "human": True, "judge": False}
+    ]
+
+
+def test_agreement_is_none_when_nothing_was_compared() -> None:
+    """비교한 것이 없으면 0% 가 아니라 '모른다' 가 맞다."""
+    assert judge.agreement({}, {})["rate"] is None
+
+
+def test_agreement_is_tied_to_the_judge_prompt_version() -> None:
+    """프롬프트가 바뀌면 과거 일치율을 그대로 믿을 수 없다."""
+    assert judge.agreement({}, {})["judge_prompt_version"] == judge.JUDGE_PROMPT_VERSION

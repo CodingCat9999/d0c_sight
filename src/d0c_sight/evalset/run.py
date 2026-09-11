@@ -17,7 +17,7 @@ import time
 from dataclasses import asdict, dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
-from d0c_sight.evalset.grade import CheckResult, grade_case
+from d0c_sight.evalset.grade import CheckId, CheckResult, grade_case
 from d0c_sight.evalset.models import CaseType
 from d0c_sight.llm.config import LlmConfig
 from d0c_sight.llm.diagnose import DiagnosisError, diagnose
@@ -36,6 +36,14 @@ log = logging.getLogger("d0c_sight.evalset")
 
 #: 503 으로 실패한 문항을 몇 번까지 다시 돌릴 것인가. 폴백 대신 재실행으로 다룬다.
 DEFAULT_MAX_RETRIES = 2
+
+#: 호출 사이 최소 간격(초). 무료 티어 Flash-Lite 한도가 분당 15회이므로 60/15 = 4초다.
+#:
+#: SDK 재시도만으로는 부족하다는 것을 실측했다. 기본 백오프는 1s→2s→4s→8s 로 최대
+#: 15초 남짓인데 레이트 리밋 윈도우는 60초다. 20문항을 48초에 28회 호출해 429 가
+#: 났고, SDK 5회와 우리 재시도 3회가 모두 같은 윈도우 안에서 소진됐다.
+#: 백오프를 늘리는 대신 **애초에 한도를 넘지 않게** 간격을 둔다(ADR 0007).
+MIN_CALL_INTERVAL_S = 4.0
 
 
 def cache_key(case: EvalCase, model: str, prompt_version: str, settings: Mapping[str, Any]) -> str:
@@ -151,6 +159,22 @@ def _context_for(case: EvalCase, chunks: Mapping[str, Chunk]) -> list[Chunk]:
     return [chunks[g.chunk_id] for g in case.gold_chunks if g.chunk_id in chunks]
 
 
+class Throttle:
+    """호출 사이에 최소 간격을 둔다. 캐시 적중에는 기다리지 않는다."""
+
+    def __init__(self, interval_s: float = MIN_CALL_INTERVAL_S) -> None:
+        self._interval = interval_s
+        self._last = 0.0
+
+    def wait(self) -> None:
+        if self._interval <= 0:
+            return
+        elapsed = time.monotonic() - self._last
+        if self._last and elapsed < self._interval:
+            time.sleep(self._interval - elapsed)
+        self._last = time.monotonic()
+
+
 def run_case(
     case: EvalCase,
     provider: LlmProvider,
@@ -158,6 +182,7 @@ def run_case(
     config: LlmConfig,
     cache: ResultCache | None = None,
     max_retries: int = DEFAULT_MAX_RETRIES,
+    throttle: Throttle | None = None,
 ) -> tuple[CaseResult, int]:
     """문항 하나를 실행하고 채점한다. (결과, 실제 API 호출 수)."""
     settings = {
@@ -173,8 +198,15 @@ def run_case(
             return (
                 CaseResult(
                     case_id=case.case_id,
+                    # CheckId 로 되돌려야 한다. StrEnum 이라 문자열로 두어도 == 비교는
+                    # 통과하므로, 복원을 빠뜨려도 테스트가 조용히 넘어간다.
                     checks=tuple(
-                        CheckResult(**{**c, "check_id": c["check_id"]}) for c in hit["checks"]
+                        CheckResult(
+                            check_id=CheckId(c["check_id"]),
+                            passed=c["passed"],
+                            detail=c.get("detail", ""),
+                        )
+                        for c in hit["checks"]
                     ),
                     insufficient_cause=hit["insufficient_cause"],
                     retries=hit["retries"],
@@ -191,6 +223,8 @@ def run_case(
     calls = 0
     last_error = ""
     for attempt in range(max_retries + 1):
+        if throttle is not None:
+            throttle.wait()
         calls += 1
         try:
             result = diagnose(case.question, context, provider, fixed, chunks.keys())
@@ -233,14 +267,16 @@ def run_evalset(
     cases: Sequence[EvalCase] | None = None,
     cache: ResultCache | None = None,
     max_retries: int = DEFAULT_MAX_RETRIES,
+    interval_s: float = MIN_CALL_INTERVAL_S,
 ) -> RunResult:
     cfg = config or LlmConfig()
     targets = list(cases if cases is not None else evalset.cases)
     started = time.time()
     results: list[CaseResult] = []
     calls = 0
+    throttle = Throttle(interval_s)
     for case in targets:
-        result, used = run_case(case, provider, chunks, cfg, cache, max_retries)
+        result, used = run_case(case, provider, chunks, cfg, cache, max_retries, throttle)
         results.append(result)
         calls += used
 
@@ -254,6 +290,7 @@ def run_evalset(
             "thinking_budget": cfg.thinking_budget,
             "max_output_tokens": cfg.max_output_tokens,
             "max_retries": max_retries,
+            "min_call_interval_s": interval_s,
         },
         cases=tuple(results),
         started_at=time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(started)),

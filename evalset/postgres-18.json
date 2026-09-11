@@ -1,0 +1,691 @@
+{
+  "version": "v1",
+  "created": "2026-09-11",
+  "corpus_version": "18.6",
+  "cases": [
+    {
+      "case_id": "e01",
+      "question": "FATAL: sorry, too many clients already",
+      "version": "18.6",
+      "case_type": "error",
+      "search_axis": "both",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-connection#RUNTIME-CONFIG-CONNECTION-SETTINGS:2",
+          "content_sha256": "c9ae379972c0ac3f"
+        }
+      ],
+      "split": "improve",
+      "provenance": "mailing_list",
+      "rationale": "가장 흔한 연결 고갈 에러. 에러 문자열이 문서에 없으므로 메커니즘 설명으로 근거를 대야 한다.",
+      "source_url": "https://www.postgresql.org/message-id/CADM4kyuO39mr8E_xDw4GGi2v9gCK0dq52fKj40FcsXJeKxgRrA@mail.gmail.com",
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "e02",
+      "question": "FATAL: remaining connection slots are reserved for roles with the SUPERUSER attribute",
+      "version": "18.6",
+      "case_type": "error",
+      "search_axis": "both",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-connection#RUNTIME-CONFIG-CONNECTION-SETTINGS:4",
+          "content_sha256": "8de0655b3e1b41bf"
+        },
+        {
+          "chunk_id": "runtime-config-connection#RUNTIME-CONFIG-CONNECTION-SETTINGS:2",
+          "content_sha256": "c9ae379972c0ac3f"
+        }
+      ],
+      "split": "improve",
+      "provenance": "mailing_list",
+      "rationale": "e01 과 증상이 비슷하지만 원인 파라미터가 다르다. 둘을 구별하는지 본다.",
+      "source_url": "https://www.postgresql.org/message-id/CAJ4WggXYoXy_M0YybnMzNNnL0KLde7+syW1tMid+r4B2zPfz2w@mail.gmail.com",
+      "traps": [
+        "similar_parameter",
+        "version_dependent"
+      ],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "e03",
+      "question": "ERROR: out of shared memory  HINT: You might need to increase max_locks_per_transaction.",
+      "version": "18.6",
+      "case_type": "error",
+      "search_axis": "both",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-locks#RUNTIME-CONFIG-LOCKS:1",
+          "content_sha256": "728612cf1afb10e5"
+        }
+      ],
+      "split": "improve",
+      "provenance": "mailing_list",
+      "rationale": "HINT 가 답을 알려주는 경우. 힌트를 그대로 옮기지 않고 근거를 대는지 본다.",
+      "source_url": "https://www.postgresql.org/message-id/CAGqBcTY9N_=ChgGMVkfm=2gMMZPOBCViSTmRkvPhRC0jCVg5Gw@mail.gmail.com",
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "e04",
+      "question": "ERROR: deadlock detected — 동시 UPDATE 에서 반복적으로 발생한다",
+      "version": "18.6",
+      "case_type": "error",
+      "search_axis": "semantic_only",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-locks#RUNTIME-CONFIG-LOCKS:0",
+          "content_sha256": "fe883402fc389149"
+        }
+      ],
+      "split": "improve",
+      "provenance": "mailing_list",
+      "rationale": "에러 코드가 아니라 상황 서술로 들어온다. 의미 검색 축.",
+      "source_url": "https://www.postgresql.org/message-id/OS0PR01MB611318903C12DB5B08562B95FBDA9@OS0PR01MB6113.jpnprd01.prod.outlook.com",
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "e05",
+      "question": "ERROR: could not resize shared memory segment to 182656 bytes: No space left on device",
+      "version": "18.6",
+      "case_type": "error",
+      "search_axis": "keyword_only",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-resource#RUNTIME-CONFIG-RESOURCE-MEMORY:5",
+          "content_sha256": "56e9328985667f1a"
+        }
+      ],
+      "split": "holdout",
+      "provenance": "mailing_list",
+      "rationale": "정답이 에러 문자열과 직접 연결되지 않는다. 병렬 쿼리 작업 메모리가 원인이다.",
+      "source_url": "https://www.postgresql.org/message-id/CA+hUKGKfDF+Z-32ejxVjunTqkAaF-mznOAy30dhS9KEHsXjVzA@mail.gmail.com",
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "e06",
+      "question": "autovacuum 이 to prevent wraparound 로 며칠째 돌고 있는데 끝나지 않는다",
+      "version": "18.6",
+      "case_type": "error",
+      "search_axis": "semantic_only",
+      "gold_chunks": [
+        {
+          "chunk_id": "routine-vacuuming#VACUUM-BASICS:0",
+          "content_sha256": "bf13f528e966cbd0"
+        },
+        {
+          "chunk_id": "runtime-config-vacuum#RUNTIME-CONFIG-AUTOVACUUM:12",
+          "content_sha256": "f2c77fcd2c2d5edc"
+        }
+      ],
+      "split": "improve",
+      "provenance": "mailing_list",
+      "rationale": "여러 청크가 필요하다. 개념(wraparound)과 파라미터를 함께 짚어야 한다.",
+      "source_url": "https://www.postgresql.org/message-id/16509821.RXMXR21guh@moltowork",
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "e07",
+      "question": "임시 테이블이 있는 세션 때문에 autovacuum 이 막히고 XID wraparound 로 간다",
+      "version": "18.6",
+      "case_type": "error",
+      "search_axis": "semantic_only",
+      "gold_chunks": [
+        {
+          "chunk_id": "routine-vacuuming#VACUUM-BASICS:0",
+          "content_sha256": "bf13f528e966cbd0"
+        }
+      ],
+      "split": "holdout",
+      "provenance": "mailing_list",
+      "rationale": "문서가 이 구체적 시나리오를 직접 다루지 않는다. 근거 부족 판정이 나올 수도 있는 경계 케이스.",
+      "source_url": "https://www.postgresql.org/message-id/0A3221C70F24FB45833433255569204D1F8A4DC6@G01JPEXMBYT05",
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "e08",
+      "question": "autovacuum 이 따라잡지 못해 bloat 가 계속 늘어난다",
+      "version": "18.6",
+      "case_type": "error",
+      "search_axis": "multi_chunk",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-vacuum#RUNTIME-CONFIG-AUTOVACUUM:8",
+          "content_sha256": "6c6d4e629fd295c6"
+        },
+        {
+          "chunk_id": "runtime-config-vacuum#RUNTIME-CONFIG-AUTOVACUUM:4",
+          "content_sha256": "7bf33453428347c9"
+        },
+        {
+          "chunk_id": "sql-vacuum#id-1.9.3.184.5:1",
+          "content_sha256": "6bb4a96d18475a59"
+        }
+      ],
+      "split": "improve",
+      "provenance": "mailing_list",
+      "rationale": "튜닝 파라미터 여러 개와 VACUUM FULL 을 함께 봐야 하는 multi_chunk 케이스.",
+      "source_url": "https://www.postgresql.org/message-id/0265f9e2-3e32-e67d-f106-8abde596c0e4@commandprompt.com",
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "e09",
+      "question": "수백만 행을 일괄 삽입한 뒤 autovacuum 과 ANALYZE 는 언제 도는가?",
+      "version": "18.6",
+      "case_type": "error",
+      "search_axis": "multi_chunk",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-vacuum#RUNTIME-CONFIG-AUTOVACUUM:8",
+          "content_sha256": "6c6d4e629fd295c6"
+        },
+        {
+          "chunk_id": "runtime-config-vacuum#RUNTIME-CONFIG-AUTOVACUUM:4",
+          "content_sha256": "7bf33453428347c9"
+        }
+      ],
+      "split": "improve",
+      "provenance": "mailing_list",
+      "rationale": "대량 적재 직후의 실제 운영 질문. 임계값 공식이 여러 파라미터에 걸쳐 있다.",
+      "source_url": "https://www.postgresql.org/message-id/CAOR=d=2g=zSd90hoarM-1Kvw2zZxoXV7TkMT_03XSLXmPp+J0A@mail.gmail.com",
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "c01",
+      "question": "shared_buffers 와 effective_cache_size 는 무엇이 다른가?",
+      "version": "18.6",
+      "case_type": "config",
+      "search_axis": "multi_chunk",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-resource#RUNTIME-CONFIG-RESOURCE-MEMORY:0",
+          "content_sha256": "6453670599cdaadd"
+        },
+        {
+          "chunk_id": "runtime-config-query#RUNTIME-CONFIG-QUERY-CONSTANTS:10",
+          "content_sha256": "4dbce8c55ec2d430"
+        }
+      ],
+      "split": "improve",
+      "provenance": "mailing_list",
+      "rationale": "effective_cache_size 는 실제로 메모리를 할당하지 않는다. 예외 조항을 놓치는지 본다.",
+      "source_url": "https://www.postgresql.org/message-id/Pine.LNX.4.33.0405101016430.16482-100000@css120.ihs.com",
+      "traps": [
+        "similar_parameter",
+        "exception_clause"
+      ],
+      "judge_items": [
+        "plan_only_not_allocation"
+      ],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "c02",
+      "question": "effective_cache_size 를 올리면 PostgreSQL 이 메모리를 더 쓰나요?",
+      "version": "18.6",
+      "case_type": "config",
+      "search_axis": "semantic_only",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-query#RUNTIME-CONFIG-QUERY-CONSTANTS:10",
+          "content_sha256": "4dbce8c55ec2d430"
+        }
+      ],
+      "split": "holdout",
+      "provenance": "mailing_list",
+      "rationale": "답은 '아니오' 다. 플래너 추정치일 뿐이라는 예외 조항이 핵심이다.",
+      "source_url": "https://www.postgresql.org/message-id/20181011174849.GC7807@momjian.us",
+      "traps": [
+        "exception_clause"
+      ],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "c03",
+      "question": "96GB 서버에서 shared_buffers 를 얼마로 잡아야 하나?",
+      "version": "18.6",
+      "case_type": "config",
+      "search_axis": "both",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-resource#RUNTIME-CONFIG-RESOURCE-MEMORY:0",
+          "content_sha256": "6453670599cdaadd"
+        }
+      ],
+      "split": "improve",
+      "provenance": "mailing_list",
+      "rationale": "문서는 구체적 수치 대신 비율 지침만 준다. 없는 숫자를 지어내는지 본다.",
+      "source_url": "https://www.postgresql.org/message-id/CADKbJJV=Kj9ZWKBt-Vk35aj7HSoNM8weV8N6OQKsVYmQfxn_rQ@mail.gmail.com",
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "c04",
+      "question": "컨테이너에서 PostgreSQL 메모리 설정은 무엇을 기준으로 잡나?",
+      "version": "18.6",
+      "case_type": "config",
+      "search_axis": "semantic_only",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-resource#RUNTIME-CONFIG-RESOURCE-MEMORY:0",
+          "content_sha256": "6453670599cdaadd"
+        },
+        {
+          "chunk_id": "runtime-config-resource#RUNTIME-CONFIG-RESOURCE-MEMORY:5",
+          "content_sha256": "56e9328985667f1a"
+        }
+      ],
+      "split": "improve",
+      "provenance": "mailing_list",
+      "rationale": "문서에 컨테이너 언급이 없다. 일반 지침으로 답하되 한계를 밝히는지 본다.",
+      "source_url": "https://www.postgresql.org/message-id/CAGbX52FendzTdDgTrs_DqF39Oj6pedigmc4Pu7GXy7VUtPxGVw@mail.gmail.com",
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "c05",
+      "question": "work_mem 과 maintenance_work_mem 은 어떻게 다른가?",
+      "version": "18.6",
+      "case_type": "config",
+      "search_axis": "multi_chunk",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-resource#RUNTIME-CONFIG-RESOURCE-MEMORY:5",
+          "content_sha256": "56e9328985667f1a"
+        },
+        {
+          "chunk_id": "runtime-config-resource#RUNTIME-CONFIG-RESOURCE-MEMORY:7",
+          "content_sha256": "b04f48c38997b581"
+        }
+      ],
+      "split": "improve",
+      "provenance": "mailing_list",
+      "rationale": "이름이 비슷한 두 파라미터. 용도와 동시성 배수가 다르다.",
+      "source_url": "https://www.postgresql.org/message-id/CAKYm0cqd0muJ7sJnSfdY-75_jEnEhcunWXQB2g1cXmm4SB315Q@mail.gmail.com",
+      "traps": [
+        "similar_parameter"
+      ],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "c06",
+      "question": "PostgreSQL 15 에서 메모리 사용량이 예상보다 크다. 어떤 설정을 봐야 하나?",
+      "version": "18.6",
+      "case_type": "config",
+      "search_axis": "multi_chunk",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-resource#RUNTIME-CONFIG-RESOURCE-MEMORY:5",
+          "content_sha256": "56e9328985667f1a"
+        },
+        {
+          "chunk_id": "runtime-config-resource#RUNTIME-CONFIG-RESOURCE-MEMORY:0",
+          "content_sha256": "6453670599cdaadd"
+        },
+        {
+          "chunk_id": "runtime-config-resource#RUNTIME-CONFIG-RESOURCE-MEMORY:7",
+          "content_sha256": "b04f48c38997b581"
+        }
+      ],
+      "split": "holdout",
+      "provenance": "mailing_list",
+      "rationale": "질문에 버전이 명시됐지만 코퍼스는 18.6 뿐이다. 버전 한계를 밝히는지 본다.",
+      "source_url": "https://www.postgresql.org/message-id/LO0P265MB2700590113FEC61BE8B660F3F9F32@LO0P265MB2700.GBRP265.PROD.OUTLOOK.COM",
+      "traps": [
+        "version_dependent"
+      ],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "c07",
+      "question": "statement_timeout 의 기본값은 무엇이고 무엇을 중단시키나?",
+      "version": "18.6",
+      "case_type": "config",
+      "search_axis": "keyword_only",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-client#RUNTIME-CONFIG-CLIENT-STATEMENT:15",
+          "content_sha256": "1763eafb81448552"
+        }
+      ],
+      "split": "improve",
+      "provenance": "documentation",
+      "rationale": "정확한 파라미터명으로만 찾을 수 있는 키워드 축 기준선.",
+      "source_url": null,
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "c08",
+      "question": "유휴 트랜잭션이 커넥션을 붙잡고 있을 때 끊는 설정은?",
+      "version": "18.6",
+      "case_type": "config",
+      "search_axis": "semantic_only",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-client#RUNTIME-CONFIG-CLIENT-STATEMENT:18",
+          "content_sha256": "a56d4e64ac5539c7"
+        }
+      ],
+      "split": "improve",
+      "provenance": "documentation",
+      "rationale": "파라미터명을 모르는 상태의 질문. statement_timeout 과 혼동하는지 본다.",
+      "source_url": null,
+      "traps": [
+        "similar_parameter"
+      ],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "c09",
+      "question": "max_wal_size 와 checkpoint_timeout 은 체크포인트에 각각 어떻게 작용하나?",
+      "version": "18.6",
+      "case_type": "config",
+      "search_axis": "multi_chunk",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-wal#RUNTIME-CONFIG-WAL-CHECKPOINTS:4",
+          "content_sha256": "9694b59c1e65888f"
+        },
+        {
+          "chunk_id": "runtime-config-wal#RUNTIME-CONFIG-WAL-CHECKPOINTS:0",
+          "content_sha256": "bc845699c4c12e23"
+        }
+      ],
+      "split": "holdout",
+      "provenance": "documentation",
+      "rationale": "두 파라미터가 함께 체크포인트 주기를 정한다. 한쪽만 답하면 불완전하다.",
+      "source_url": null,
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "k01",
+      "question": "VACUUM 과 VACUUM FULL 은 무엇이 다른가?",
+      "version": "18.6",
+      "case_type": "concept",
+      "search_axis": "both",
+      "gold_chunks": [
+        {
+          "chunk_id": "sql-vacuum#id-1.9.3.184.5:1",
+          "content_sha256": "6bb4a96d18475a59"
+        }
+      ],
+      "split": "improve",
+      "provenance": "documentation",
+      "rationale": "이름이 비슷하고 동작이 크게 다르다. VACUUM FULL 의 배타 잠금을 빠뜨리는지 본다.",
+      "source_url": null,
+      "traps": [
+        "similar_parameter"
+      ],
+      "judge_items": [
+        "mentions_exclusive_lock"
+      ],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "k03",
+      "question": "TOAST 는 무엇이고 언제 동작하나?",
+      "version": "18.6",
+      "case_type": "concept",
+      "search_axis": "keyword_only",
+      "gold_chunks": [
+        {
+          "chunk_id": "storage-toast#STORAGE-TOAST:0",
+          "content_sha256": "7360db48b12937f9"
+        }
+      ],
+      "split": "improve",
+      "provenance": "documentation",
+      "rationale": "고유 용어로만 찾을 수 있는 키워드 축.",
+      "source_url": null,
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "k04",
+      "question": "HOT update 가 무엇이며 어떤 조건에서 일어나나?",
+      "version": "18.6",
+      "case_type": "concept",
+      "search_axis": "keyword_only",
+      "gold_chunks": [
+        {
+          "chunk_id": "storage-hot#STORAGE-HOT:0",
+          "content_sha256": "228fe66d5e1268ca"
+        }
+      ],
+      "split": "holdout",
+      "provenance": "documentation",
+      "rationale": "조건이 있는 개념. '인덱스된 컬럼을 바꾸지 않을 때' 라는 조건을 빠뜨리는지 본다.",
+      "source_url": null,
+      "traps": [
+        "exception_clause"
+      ],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "k05",
+      "question": "Read Committed 와 Repeatable Read 의 차이는?",
+      "version": "18.6",
+      "case_type": "concept",
+      "search_axis": "both",
+      "gold_chunks": [
+        {
+          "chunk_id": "transaction-iso#TRANSACTION-ISO:6",
+          "content_sha256": "f4084a863ff39eab"
+        }
+      ],
+      "split": "improve",
+      "provenance": "documentation",
+      "rationale": "정답이 표 청크다. 표에서 근거를 뽑아 인용할 수 있는지 본다.",
+      "source_url": null,
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "k07",
+      "question": "wal_level 값에 따라 무엇이 달라지나?",
+      "version": "18.6",
+      "case_type": "concept",
+      "search_axis": "keyword_only",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-wal#RUNTIME-CONFIG-WAL-SETTINGS:0",
+          "content_sha256": "40c292be77df61db"
+        }
+      ],
+      "split": "holdout",
+      "provenance": "documentation",
+      "rationale": "열거형 파라미터. 값마다 다른 결과를 정확히 구분하는지 본다.",
+      "source_url": null,
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "k08",
+      "question": "deadlock_timeout 을 낮추면 데드락이 덜 생기나?",
+      "version": "18.6",
+      "case_type": "concept",
+      "search_axis": "semantic_only",
+      "gold_chunks": [
+        {
+          "chunk_id": "runtime-config-locks#RUNTIME-CONFIG-LOCKS:0",
+          "content_sha256": "fe883402fc389149"
+        }
+      ],
+      "split": "improve",
+      "provenance": "documentation",
+      "rationale": "전제가 틀린 질문이다. 탐지 주기이지 예방 설정이 아니라는 것을 짚는지 본다.",
+      "source_url": null,
+      "traps": [
+        "exception_clause"
+      ],
+      "judge_items": [
+        "corrects_false_premise"
+      ],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "s01",
+      "question": "SQLSTATE 23505 는 무슨 뜻인가?",
+      "version": "18.6",
+      "case_type": "error",
+      "search_axis": "keyword_only",
+      "gold_chunks": [
+        {
+          "chunk_id": "errcodes-appendix#ERRCODES-APPENDIX:3.2",
+          "content_sha256": "9934ced5c5e428f7"
+        }
+      ],
+      "split": "improve",
+      "provenance": "documentation",
+      "rationale": "정확 매칭으로만 찾을 수 있다. 의미 검색으로는 코드 문자열에 도달하지 못한다.",
+      "source_url": null,
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "s02",
+      "question": "SQLSTATE 53300 과 40P01 은 각각 어떤 상황인가?",
+      "version": "18.6",
+      "case_type": "error",
+      "search_axis": "multi_chunk",
+      "gold_chunks": [
+        {
+          "chunk_id": "errcodes-appendix#ERRCODES-APPENDIX:3.2",
+          "content_sha256": "9934ced5c5e428f7"
+        },
+        {
+          "chunk_id": "errcodes-appendix#ERRCODES-APPENDIX:3.3",
+          "content_sha256": "47d264337501a633"
+        }
+      ],
+      "split": "holdout",
+      "provenance": "documentation",
+      "rationale": "두 코드가 서로 다른 표 조각에 있다. 분할된 표에서 둘 다 찾아야 한다.",
+      "source_url": null,
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "n01",
+      "question": "Kubernetes 파드가 재시작될 때 PostgreSQL 커넥션은 어떻게 정리되나?",
+      "version": "18.6",
+      "case_type": "no_answer",
+      "search_axis": "semantic_only",
+      "gold_chunks": [],
+      "split": "improve",
+      "provenance": "documentation",
+      "rationale": "코퍼스에 kubernetes 0건임을 확인했다. 그럴듯하게 지어내기 쉬운 주제라 고른다.",
+      "source_url": null,
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "n02",
+      "question": "Amazon RDS 파라미터 그룹에서 max_connections 를 어떻게 바꾸나?",
+      "version": "18.6",
+      "case_type": "no_answer",
+      "search_axis": "both",
+      "gold_chunks": [],
+      "split": "improve",
+      "provenance": "documentation",
+      "rationale": "max_connections 는 문서에 있지만 RDS 는 0건이다. 아는 부분에 이끌려 답하는지 본다.",
+      "source_url": null,
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "n03",
+      "question": "Docker 컨테이너 안에서 shared_buffers 를 자동 조정하는 방법은?",
+      "version": "18.6",
+      "case_type": "no_answer",
+      "search_axis": "semantic_only",
+      "gold_chunks": [],
+      "split": "holdout",
+      "provenance": "documentation",
+      "rationale": "코퍼스에 docker 0건. c04 와 짝을 이룬다 — 그쪽은 답할 수 있고 이쪽은 없다.",
+      "source_url": null,
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    },
+    {
+      "case_id": "n04",
+      "question": "Prometheus 로 PostgreSQL 지표를 수집하려면 어떤 익스포터를 쓰나?",
+      "version": "18.6",
+      "case_type": "no_answer",
+      "search_axis": "keyword_only",
+      "gold_chunks": [],
+      "split": "holdout",
+      "provenance": "documentation",
+      "rationale": "코퍼스에 prometheus 0건. 외부 생태계 질문이다.",
+      "source_url": null,
+      "traps": [],
+      "judge_items": [],
+      "needs_review": false,
+      "review_note": ""
+    }
+  ]
+}

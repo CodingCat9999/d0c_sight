@@ -42,6 +42,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dia.add_argument("--chunks", type=Path, default=DEFAULT_OUT, help="청크 JSONL 경로")
     dia.add_argument("--json", action="store_true", help="결과를 JSON 으로 출력")
+
+    ev = sub.add_parser("eval", help="평가셋을 실행한다 (정답 청크 주입, 폴백 없음)")
+    ev.add_argument("--evalset", type=Path, default=Path("evalset/postgres-18.json"))
+    ev.add_argument("--chunks", type=Path, default=DEFAULT_OUT)
+    ev.add_argument("--model", default=None, help="이 실행에 고정할 모델")
+    ev.add_argument("--split", choices=["improve", "holdout", "all"], default="improve")
+    ev.add_argument("--out", type=Path, default=Path("evalset/runs"))
+    ev.add_argument("--cache", type=Path, default=Path("evalset/cache"))
+    ev.add_argument("--no-cache", action="store_true")
+    ev.add_argument("--label", default="", help="결과 파일 이름에 붙일 꼬리표")
     return p
 
 
@@ -134,12 +144,95 @@ def _print_result(result: object, context_size: int) -> None:
             print(f"  - {drop.reason.value}: {drop.chunk_id or '(id 없음)'}")
 
 
+def _eval(args: argparse.Namespace) -> int:
+    import logging
+    from dataclasses import replace
+
+    from d0c_sight.evalset import integrity, store
+    from d0c_sight.evalset.models import Split
+    from d0c_sight.evalset.run import ResultCache, run_evalset
+    from d0c_sight.llm.config import LlmConfig
+    from d0c_sight.llm.gemini import GeminiProvider
+    from d0c_sight.llm.protocol import ProviderError
+
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
+    if not args.evalset.is_file():
+        print(f"평가셋이 없다: {args.evalset}", file=sys.stderr)
+        return 1
+    if not args.chunks.is_file():
+        print(f"청크가 없다: {args.chunks}. 먼저 ingest 를 실행하라.", file=sys.stderr)
+        return 1
+
+    evalset = store.load(args.evalset)
+    chunks = {c.chunk_id: c for c in read_jsonl(args.chunks)}
+
+    issues = integrity.check(evalset, chunks)
+    if issues:
+        print(f"[무결성] 문제 {len(issues)}건 — 실행 전에 확인하라", file=sys.stderr)
+        for issue in issues:
+            print(f"  {issue}", file=sys.stderr)
+        return 1
+
+    cases = None if args.split == "all" else evalset.by_split(Split(args.split))
+    cfg = LlmConfig()
+    if args.model:
+        cfg = replace(cfg, model=args.model)
+
+    try:
+        provider = GeminiProvider(api_key_env=cfg.api_key_env)
+    except ProviderError as exc:
+        print(f"{exc}", file=sys.stderr)
+        return 1
+
+    cache = None if args.no_cache else ResultCache(args.cache)
+    n = len(cases) if cases is not None else len(evalset.cases)
+    print(
+        f"실행: {n}문항  모델 {cfg.model}  split={args.split}  캐시={'off' if args.no_cache else 'on'}"
+    )
+    run = run_evalset(evalset, provider, chunks, cfg, cases, cache)
+
+    args.out.mkdir(parents=True, exist_ok=True)
+    stamp = run.started_at.replace(":", "").replace("-", "")
+    tag = f"-{args.label}" if args.label else ""
+    path = args.out / f"{stamp}-{cfg.model}-{args.split}{tag}.json"
+    path.write_text(json.dumps(run.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+
+    print(f"\n결과 {path}")
+    print(
+        f"  API 호출 {run.api_calls}회  {run.duration_s}s  캐시적중 "
+        f"{sum(1 for c in run.cases if c.from_cache)}/{len(run.cases)}"
+    )
+    print(
+        f"  완전성 {run.complete}"
+        + (
+            f"  ← 실패 {len(run.failed_case_ids)}문항: {', '.join(run.failed_case_ids)}"
+            if not run.complete
+            else ""
+        )
+    )
+    rate = run.pass_rate
+    print(
+        f"  전 항목 통과: {'—  (불완전한 실행이라 계산하지 않는다)' if rate is None else f'{rate:.1%}'}"
+    )
+    print("\n  항목별")
+    for name, (ok, total) in sorted(run.check_totals().items()):
+        print(f"    {name:<22} {ok:>3}/{total:<3} {ok / total:.0%}")
+    causes = [c.insufficient_cause for c in run.cases if c.insufficient_cause]
+    if causes:
+        from collections import Counter
+
+        print(f"\n  근거 부족 사유: {dict(Counter(causes))}")
+    return 0 if run.complete else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "ingest":
         return _ingest(args)
     if args.command == "diagnose":
         return _diagnose(args)
+    if args.command == "eval":
+        return _eval(args)
     return 1
 
 

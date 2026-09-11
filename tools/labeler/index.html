@@ -264,7 +264,7 @@ async function initScoring() {
   const run = await api("/api/run?id=" + encodeURIComponent(runs[runs.length - 1]));
   humanScores = await api("/api/human-scores");
   scoreCases = run.cases; scoreIdx = 0;
-  $("#scoreNav").innerHTML = `실행 <b>${runs[runs.length - 1]}</b> · ${run.model} · 
+  $("#scoreNav").innerHTML = `실행 <b>${runs[runs.length - 1]}</b> · ${run.model} ·
     ${run.cases.length}문항 · 완전성 ${run.complete}`;
   renderScore();
 }
