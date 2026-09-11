@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "근거를 추적할 수 있는 인프라 에러 진단 시스템"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-dependencies = []
+dependencies = [
+    "google-genai>=2.22",
+]
 
 [project.scripts]
 d0c-sight = "d0c_sight.cli:main"
@@ -68,7 +70,7 @@ known-first-party = ["d0c_sight"]
 # ─────────────────────────────────────────────────────────────
 [tool.mypy]
 python_version = "3.12"
-files = ["src", "tests"]
+files = ["src", "tests", "scripts"]
 strict = true
 warn_unreachable = true
 warn_no_return = true
