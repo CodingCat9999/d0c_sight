@@ -64,7 +64,17 @@ uv run ruff check .        # 린트
 uv run ruff format .       # 포맷
 uv run mypy                # 타입 검사 (strict)
 uv run pre-commit run --all-files   # 전체 훅
+
+uv run d0c-sight ingest            # 문서 수집 → 청크 JSONL
+uv run d0c-sight diagnose "에러" --chunk-id ID   # 진단 (검색 없음, 청크 직접 지정)
+uv run python scripts/live_check.py             # 실제 API 호출 확인 (CI 에서 안 돈다)
 ```
+
+**API 호출 테스트는 CI 에서 돌지 않는다.** 단위 테스트는 공급사를 더블로 고정하고,
+실제 호출은 `scripts/live_check.py` 에만 있다. 무료 티어의 503 으로 CI 가 빨개지거나
+매 커밋마다 쿼터를 쓰는 일을 막는다.
+
+**무료 티어는 입출력이 모델 개선에 쓰일 수 있다. 공개 문서만 넣는다.**
 
 **주의**: `pre-commit run` 은 git 이 추적하는 파일만 본다. staged 가 없으면 전부
 `Skipped` 인데 exit 0 이다. 검증할 때는 `--all-files` 와 함께 파일이 실제로
@@ -76,7 +86,10 @@ uv run pre-commit run --all-files   # 전체 훅
 
 ```
 domain  ←  sources  ←  pipeline  ←  cli
+   ↖──────  llm  ───────────────────↗
 ```
+
+`llm` 은 `domain` 에만 의존한다. 청크가 어디서 왔는지 알지 못한다.
 
 - `domain` 은 프로젝트 내부의 어떤 모듈도 import 하지 않는다
 - 각 계층은 자기보다 왼쪽만 import 한다. 순환 금지
@@ -87,21 +100,21 @@ domain  ←  sources  ←  pipeline  ←  cli
 
 ### 아직 만들지 않은 것
 
-`retrieval/`(P4–5), `evidence/`(P6), `agents/`(P8), `eval/`(P3), `llm/`(P2)는
-해당 Phase 에 도달했을 때 만든다. 빈 디렉터리를 미리 만들지 않는다.
+`retrieval/`(P4–5), `evidence/`(P6), `agents/`(P8), `eval/`(P3)는 해당 Phase 에
+도달했을 때 만든다. 빈 디렉터리를 미리 만들지 않는다.
 
 ---
 
 ## 현재 상태
 
-**Phase 1 완료 — 수집·파싱·청킹.** LLM 은 아직 없다.
+**Phase 2 완료 — 첫 LLM 호출과 구조화 출력.** 검색은 아직 없다.
 
 | Phase | 내용 | 상태 |
 |---|---|---|
 | 0 | 스캐폴드, 품질 게이트, ADR | ✅ |
 | 1 | 문서 수집·파싱·청킹 (LLM 없음) | ✅ |
-| 2 | 첫 LLM 호출, 구조화 출력 | 다음 |
-| 3 | 평가셋 — 골든 질문 30개 | |
+| 2 | 첫 LLM 호출, 구조화 출력 | ✅ |
+| 3 | 평가셋 — 골든 질문 30개 | 다음 |
 | 4 | 임베딩, 벡터 DB, 청킹 전략 실험 | |
 | 5 | 하이브리드 검색 + 리랭킹, recall@k | |
 | 6 | 근거 추적 | |
@@ -135,6 +148,13 @@ domain  ←  sources  ←  pipeline  ←  cli
 - 설정 파라미터는 표가 아니라 `<dl class="variablelist">` 다. `<dt>` 12,992개 vs 표 486개
 - 문서 1,148개 전부가 표준 라이브러리 `ElementTree` 로 파싱된다 — lxml 이 필요 없다
 - 파이프라인 산출: 문서 1,131 → 청크 16,442 (제외 7), 1.7초
+- LLM: Gemini 무료 티어 Flash 계열. `gemini-2.5-flash` 는 신규 사용자에게 404 이고,
+  `gemini-3.8-flash` 는 503 이 잦다. 기본값 `gemini-3.7-flash`(ADR 0004)
+- google-genai SDK 기본 재시도: 5회 / 1s→60s 지수 백오프 / 408·429·500·502·503·504.
+  **429 가 포함되어 있어 무료 티어 분당 제한은 SDK 가 처리한다**(ADR 0006)
+- 컨텍스트에 `[chunk_id]` 대괄호 표기를 쓰면 모델이 대괄호까지 복사해 인용한다.
+  `<chunk id="...">` 로 바꿔 원인을 없앴고, 정규화는 안전망으로만 둔다
+- 청크의 참조 메타(`ref`)가 본문 대비 약 89%다. Phase 7 컨텍스트 예산에서 다시 본다
 
 ## 미결 항목
 
@@ -143,6 +163,11 @@ domain  ←  sources  ←  pipeline  ←  cli
 - **버전 메타데이터 스키마** — major(`18`)와 full(`18.6`)을 분리한다. 질문은 major 로
   들어오고 재현성은 full 로 걸린다. Phase 1 에서 확정
 - **`.env.example`** — Phase 2 에서 LLM 설정이 생길 때 만든다
+- **`MIN_QUOTE_CHARS = 20`** — 측정 없이 정한 값이다. Phase 3 에서 인용 길이 분포와
+  탈락률을 보고 조정한다(ADR 0005)
+- **프롬프트 방식** — zero-shot 고정. few-shot / CoT 비교는 Phase 3 이후(ADR 0004)
+- **폴백과 평가의 충돌** — 평가 중 모델 폴백이 일어나면 결과를 그대로 비교하면 안 된다.
+  Phase 3 평가 실행은 단일 모델 고정을 검토한다(ADR 0006)
 - **짧은 청크** — 50자 미만이 13.95%(2,294개)다. `<pre>` 사이에 낀 `or` 같은 연결어가
   독립 청크가 된다. 검색 노이즈가 될 가능성이 높지만 **평가셋 없이 고치지 않는다**.
   Phase 3 기준선 확보 후 측정과 함께 결정한다(ADR 0003)
