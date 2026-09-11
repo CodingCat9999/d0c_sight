@@ -50,6 +50,45 @@ class RunReport:
         return lines
 
 
+def read_jsonl(path: Path) -> Iterator[Chunk]:
+    """JSONL 을 Chunk 로 되돌린다.
+
+    write_jsonl 과 짝을 이룬다. 왕복이 손실 없이 되어야 Phase 6 의 근거 추적과
+    프로젝트 2 의 학습 데이터가 성립한다.
+    """
+    from d0c_sight.domain.models import (
+        BlockKind,
+        Chunk,
+        ChunkLimits,
+        DocVersion,
+        SourceRef,
+    )
+
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            ref = row["ref"]
+            yield Chunk(
+                chunk_id=row["chunk_id"],
+                text=row["text"],
+                kind=BlockKind(row["kind"]),
+                ref=SourceRef(
+                    source_id=ref["source_id"],
+                    doc_id=ref["doc_id"],
+                    section_id=ref["section_id"],
+                    version=DocVersion(**ref["version"]),
+                    url=ref["url"],
+                ),
+                limits=ChunkLimits(**row["limits"]),
+                heading=row["heading"],
+                subtype=row["subtype"],
+                part=row["part"],
+                of=row["of"],
+            )
+
+
 def chunk_documents(
     docs: Iterable[Document], limits: ChunkLimits = DEFAULT_LIMITS
 ) -> Iterator[Chunk]:

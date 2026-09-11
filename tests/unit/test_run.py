@@ -128,3 +128,50 @@ def test_cli_fails_when_no_chunks_were_produced(tmp_path: Path) -> None:
     empty.mkdir()
     code = main(["ingest", "--html-dir", str(empty), "--out", str(tmp_path / "o.jsonl")])
     assert code == 1
+
+
+# ─── JSONL 왕복 ───────────────────────────────────────────────
+
+
+def test_jsonl_round_trip_preserves_every_field(tmp_path: Path) -> None:
+    """write → read 가 손실이 없어야 한다.
+
+    Phase 6 근거 추적과 프로젝트 2 학습 데이터가 이 파일을 다시 읽는다. 한 필드라도
+    조용히 사라지면 그때 가서야 알게 된다.
+    """
+    from d0c_sight.pipeline.run import read_jsonl
+
+    doc = _doc(
+        Block(BlockKind.PROSE, "hello"),
+        Block(BlockKind.CODE, "SELECT 1;", subtype="programlisting"),
+        Block(BlockKind.DEFINITION, "설명", heading="param (integer)"),
+    )
+    original = list(chunk_document(doc))
+    out = tmp_path / "c.jsonl"
+    write_jsonl(iter(original), out)
+
+    restored = list(read_jsonl(out))
+
+    assert restored == original
+
+
+def test_round_trip_restores_quotable_text(tmp_path: Path) -> None:
+    """인용 검증이 왕복 후에도 같은 문자열을 봐야 한다."""
+    from d0c_sight.pipeline.run import read_jsonl
+
+    doc = _doc(Block(BlockKind.DEFINITION, "본문", heading="max_connections (integer)"))
+    out = tmp_path / "c.jsonl"
+    write_jsonl(chunk_document(doc), out)
+
+    restored = next(iter(read_jsonl(out)))
+    assert restored.quotable == "max_connections (integer)\n본문"
+
+
+def test_read_jsonl_skips_blank_lines(tmp_path: Path) -> None:
+    from d0c_sight.pipeline.run import read_jsonl
+
+    out = tmp_path / "c.jsonl"
+    write_jsonl(chunk_document(_doc(Block(BlockKind.PROSE, "x"))), out)
+    out.write_text(out.read_text(encoding="utf-8") + "\n\n", encoding="utf-8")
+
+    assert len(list(read_jsonl(out))) == 1
