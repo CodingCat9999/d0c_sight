@@ -28,6 +28,7 @@ from d0c_sight.llm.prompt import build_prompt, render_chunk, system_instruction
 from d0c_sight.llm.protocol import ProviderError
 from d0c_sight.llm.verify import (
     MIN_QUOTE_CHARS,
+    can_be_quoted,
     normalize_chunk_id,
     quote_is_present,
     verify_causes,
@@ -381,3 +382,24 @@ def test_serialised_result_survives_json_round_trip() -> None:
     restored = json.loads(json.dumps(result.to_dict(), ensure_ascii=False))
     assert restored["insufficient_cause"] is None
     assert restored["diagnosis"]["causes"][0]["evidence"][0]["chunk_id"] == "doc#SEC:1"
+
+
+# ─── 인용 가능성 (라벨링 도구가 쓴다) ─────────────────────────
+
+
+def test_long_enough_body_can_be_quoted() -> None:
+    assert can_be_quoted(BODY) is True
+
+
+def test_too_short_body_cannot_be_quoted() -> None:
+    assert can_be_quoted("SSL") is False
+
+
+@pytest.mark.parametrize("n", [MIN_QUOTE_CHARS - 1, MIN_QUOTE_CHARS, MIN_QUOTE_CHARS + 1])
+def test_quotability_boundary(n: int) -> None:
+    assert can_be_quoted("x" * n) is (n >= MIN_QUOTE_CHARS)
+
+
+def test_quotability_ignores_whitespace_padding() -> None:
+    """공백으로 길이를 채운 것은 인용 가능한 본문이 아니다."""
+    assert can_be_quoted("a" + " " * 100) is False

@@ -1,0 +1,347 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>d0c_sight 라벨러</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font: 13px/1.5 ui-monospace, Menlo, monospace; margin: 0; padding: 12px; }
+  h2 { font-size: 14px; margin: 16px 0 6px; }
+  nav button { margin-right: 4px; padding: 5px 10px; cursor: pointer; }
+  nav button.on { font-weight: bold; border: 2px solid #000; }
+  section { display: none; margin-top: 12px; }
+  section.on { display: block; }
+  .cols { display: flex; gap: 12px; align-items: flex-start; }
+  .col { flex: 1; min-width: 0; }
+  input, select, textarea, button { font: inherit; }
+  input[type=text], textarea, select { width: 100%; padding: 4px; }
+  textarea { min-height: 54px; }
+  label { display: block; margin: 6px 0 2px; }
+  .chunk { border: 1px solid #bbb; padding: 6px; margin-bottom: 6px; }
+  .chunk pre { white-space: pre-wrap; word-break: break-word; margin: 4px 0;
+               max-height: 180px; overflow: auto; background: #f6f6f6; padding: 4px; }
+  .meta { color: #555; font-size: 11px; }
+  .warn { color: #a30; font-size: 11px; }
+  .gold { background: #efe; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { border: 1px solid #ccc; padding: 3px 5px; text-align: left; vertical-align: top; }
+  .yes { background: #dfd; } .no { background: #fdd; }
+  .flip-better { background: #cfc; } .flip-worse { background: #fcc; }
+  #status { position: fixed; right: 10px; top: 10px; background: #ffd; padding: 4px 8px;
+            border: 1px solid #cc0; display: none; }
+</style>
+
+<div id="status"></div>
+<nav>
+  <button data-t="browse" class="on">① 청크</button>
+  <button data-t="case">②③④ 문항</button>
+  <button data-t="score">⑤ 사람 채점</button>
+  <button data-t="compare">⑥ 실행 비교</button>
+  <span id="stats" class="meta"></span>
+</nav>
+
+<section id="browse" class="on">
+  <div class="cols">
+    <div class="col">
+      <label>문자열 검색 (정확 매칭)</label>
+      <input type="text" id="q" placeholder="max_connections">
+      <label>chunk_id 직접 조회</label>
+      <input type="text" id="byid" placeholder="doc#SEC:1">
+      <div id="results"></div>
+    </div>
+    <div class="col">
+      <h2>선택한 정답 청크 (<span id="goldCount">0</span>)</h2>
+      <div id="goldList"></div>
+    </div>
+  </div>
+</section>
+
+<section id="case">
+  <div class="cols">
+    <div class="col">
+      <label>문항 선택</label>
+      <select id="caseSelect"></select>
+      <button id="newCase">새 문항</button>
+      <button id="delCase">삭제</button>
+
+      <label>case_id</label><input type="text" id="f_case_id">
+      <label>질문</label><textarea id="f_question"></textarea>
+      <label>유형</label>
+      <select id="f_case_type">
+        <option>error</option><option>config</option>
+        <option>concept</option><option>no_answer</option>
+      </select>
+      <label>검색 축</label>
+      <select id="f_search_axis">
+        <option>keyword_only</option><option>semantic_only</option>
+        <option>both</option><option>multi_chunk</option>
+      </select>
+      <label>분할</label>
+      <select id="f_split"><option>improve</option><option>holdout</option></select>
+      <label>출처</label>
+      <select id="f_provenance">
+        <option>github_issue</option><option>mailing_list</option><option>documentation</option>
+      </select>
+      <label>출처 URL</label><input type="text" id="f_source_url">
+    </div>
+    <div class="col">
+      <label>함정 (쉼표 구분: similar_parameter, exception_clause, version_dependent)</label>
+      <input type="text" id="f_traps">
+      <label>작성 메모 — 이 케이스가 무엇을 검증하는가</label>
+      <textarea id="f_rationale"></textarea>
+      <label>judge 항목 (줄바꿈 구분)</label>
+      <textarea id="f_judge_items"></textarea>
+      <h2>정답 청크</h2>
+      <div id="caseGold" class="meta"></div>
+      <p class="meta">① 탭에서 청크를 선택하면 여기에 붙는다.</p>
+      <button id="saveCase">문항 저장</button>
+      <button id="saveAll">전체 파일 저장</button>
+      <div id="integrity"></div>
+    </div>
+  </div>
+</section>
+
+<section id="score">
+  <div id="scoreNav" class="meta"></div>
+  <div class="cols">
+    <div class="col">
+      <h2>질문</h2><div id="sc_q"></div>
+      <h2>근거 청크</h2><div id="sc_chunks"></div>
+    </div>
+    <div class="col">
+      <h2>모델 답변</h2><div id="sc_answer"></div>
+      <h2>판정</h2><div id="sc_items"></div>
+      <label>판단 근거 메모</label><textarea id="sc_note"></textarea>
+      <button id="sc_save">저장하고 다음</button>
+    </div>
+  </div>
+</section>
+
+<section id="compare">
+  <label>실행 A</label><select id="runA"></select>
+  <label>실행 B</label><select id="runB"></select>
+  <button id="doCompare">비교</button>
+  <div id="cmp"></div>
+</section>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = (p, o) => fetch(p, o).then(r => r.json());
+let evalset = null, gold = [], current = null, humanScores = {}, scoreIdx = 0, scoreCases = [];
+
+function toast(msg) {
+  const el = $("#status"); el.textContent = msg; el.style.display = "block";
+  setTimeout(() => el.style.display = "none", 2000);
+}
+
+document.querySelectorAll("nav button[data-t]").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button[data-t]").forEach(x => x.classList.remove("on"));
+  document.querySelectorAll("section").forEach(x => x.classList.remove("on"));
+  b.classList.add("on"); $("#" + b.dataset.t).classList.add("on");
+  if (b.dataset.t === "score") initScoring();
+  if (b.dataset.t === "compare") loadRuns();
+});
+
+function chunkCard(c, picked) {
+  const warn = c.too_short_to_quote
+    ? `<div class="warn">⚠ ${c.length}자 — 현재 MIN_QUOTE_CHARS(${c.min_quote_chars})
+       미만이라 인용 검증을 통과할 수 없다. 그래도 정답으로 지정할 수 있다.
+       이 임계값 자체가 측정 대상이다.</div>` : "";
+  const split = c.of > 1 ? ` part ${c.part}/${c.of} (잘린 조각)` : "";
+  return `<div class="chunk ${picked ? "gold" : ""}">
+    <div><b>${c.chunk_id}</b> <span class="meta">[${c.kind}${c.subtype ? "/" + c.subtype : ""}]
+      ${c.length}자${split}</span></div>
+    ${c.heading ? `<div class="meta">heading: ${esc(c.heading)}</div>` : ""}
+    ${warn}
+    <pre>${esc(c.body)}</pre>
+    <div class="meta"><a href="${c.url}" target="_blank">원문</a> · ${c.version}
+      · sha ${c.content_sha256}</div>
+    <button onclick="toggleGold('${c.chunk_id}')">${picked ? "정답 해제" : "정답으로 지정"}</button>
+  </div>`;
+}
+const esc = s => (s ?? "").replace(/[<>&]/g, m => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[m]));
+
+window.toggleGold = async id => {
+  const i = gold.findIndex(g => g.chunk_id === id);
+  if (i >= 0) gold.splice(i, 1);
+  else {
+    const c = await api("/api/chunk?id=" + encodeURIComponent(id));
+    gold.push({ chunk_id: c.chunk_id, content_sha256: c.content_sha256 });
+  }
+  renderGold(); renderResults();
+};
+
+let lastResults = [];
+function renderResults() {
+  $("#results").innerHTML = lastResults
+    .map(c => chunkCard(c, gold.some(g => g.chunk_id === c.chunk_id))).join("");
+}
+function renderGold() {
+  $("#goldCount").textContent = gold.length;
+  $("#goldList").innerHTML = gold.map(g =>
+    `<div class="chunk gold"><b>${g.chunk_id}</b>
+     <button onclick="toggleGold('${g.chunk_id}')">해제</button></div>`).join("");
+  $("#caseGold").innerHTML = gold.map(g => `${g.chunk_id} <span class="meta">${g.content_sha256}</span>`).join("<br>");
+}
+
+let t = null;
+$("#q").oninput = e => {
+  clearTimeout(t);
+  t = setTimeout(async () => {
+    lastResults = await api("/api/search?q=" + encodeURIComponent(e.target.value));
+    renderResults();
+  }, 250);
+};
+$("#byid").onchange = async e => {
+  const c = await api("/api/chunk?id=" + encodeURIComponent(e.target.value));
+  lastResults = c.error ? [] : [c]; renderResults();
+  if (c.error) toast("없는 chunk_id");
+};
+
+// ── 문항 ──
+async function loadEvalset() {
+  evalset = await api("/api/evalset");
+  const sel = $("#caseSelect");
+  sel.innerHTML = evalset.cases.map((c, i) =>
+    `<option value="${i}">${c.case_id} — ${esc(c.question).slice(0, 40)}</option>`).join("");
+  checkIntegrity();
+}
+$("#caseSelect").onchange = e => loadCase(evalset.cases[+e.target.value]);
+function loadCase(c) {
+  current = c;
+  f("case_id", c.case_id); f("question", c.question); f("case_type", c.case_type);
+  f("search_axis", c.search_axis); f("split", c.split); f("provenance", c.provenance);
+  f("source_url", c.source_url || ""); f("traps", (c.traps || []).join(", "));
+  f("rationale", c.rationale); f("judge_items", (c.judge_items || []).join("\n"));
+  gold = (c.gold_chunks || []).map(g => ({ ...g })); renderGold();
+}
+const f = (k, v) => { const el = $("#f_" + k); if (v !== undefined) el.value = v; return el.value; };
+
+$("#newCase").onclick = () => {
+  gold = []; renderGold(); current = null;
+  ["case_id", "question", "source_url", "traps", "rationale", "judge_items"].forEach(k => f(k, ""));
+  f("case_id", "c" + (evalset.cases.length + 1));
+};
+$("#delCase").onclick = () => {
+  const id = f("case_id");
+  evalset.cases = evalset.cases.filter(c => c.case_id !== id);
+  loadEvalset(); toast("삭제(저장 필요)");
+};
+$("#saveCase").onclick = () => {
+  const c = {
+    case_id: f("case_id"), question: f("question"), version: evalset.corpus_version,
+    case_type: f("case_type"), search_axis: f("search_axis"), split: f("split"),
+    provenance: f("provenance"), source_url: f("source_url") || null,
+    traps: f("traps").split(",").map(s => s.trim()).filter(Boolean),
+    rationale: f("rationale"),
+    judge_items: f("judge_items").split("\n").map(s => s.trim()).filter(Boolean),
+    gold_chunks: gold, needs_review: false, review_note: "",
+  };
+  const i = evalset.cases.findIndex(x => x.case_id === c.case_id);
+  if (i >= 0) evalset.cases[i] = c; else evalset.cases.push(c);
+  toast("문항 반영됨 — 전체 저장을 눌러야 파일에 쓰인다");
+  loadEvalset();
+};
+$("#saveAll").onclick = async () => {
+  const r = await api("/api/evalset", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(evalset),
+  });
+  toast(r.error ? "실패: " + r.error : `저장됨 ${r.saved}문항 → ${r.path}`);
+  if (!r.error) checkIntegrity();
+};
+async function checkIntegrity() {
+  const issues = await api("/api/integrity");
+  $("#integrity").innerHTML = issues.length
+    ? `<h2>무결성 경고 ${issues.length}건</h2>` + issues.map(i =>
+        `<div class="warn">[${i.kind}] ${i.case_id} / ${i.chunk_id} — ${esc(i.detail)}</div>`).join("")
+      + `<p class="meta">자동으로 폐기하지 않는다. 정답 유지 / 라벨 수정 / 문항 폐기를 사람이 정한다.</p>`
+    : `<p class="meta">무결성 문제 없음</p>`;
+}
+
+// ── 사람 채점 ──
+async function initScoring() {
+  const runs = await api("/api/runs");
+  if (!runs.length) { $("#scoreNav").textContent = "채점할 실행 결과가 없다 (evalset/runs/*.json)"; return; }
+  const run = await api("/api/run?id=" + encodeURIComponent(runs[runs.length - 1]));
+  humanScores = await api("/api/human-scores");
+  scoreCases = run.cases; scoreIdx = 0;
+  $("#scoreNav").innerHTML = `실행 <b>${runs[runs.length - 1]}</b> · ${run.model} · 
+    ${run.cases.length}문항 · 완전성 ${run.complete}`;
+  renderScore();
+}
+function renderScore() {
+  const cr = scoreCases[scoreIdx];
+  if (!cr) return;
+  const c = (evalset.cases || []).find(x => x.case_id === cr.case_id) || {};
+  const d = cr.diagnosis?.diagnosis || {};
+  $("#sc_q").innerHTML = `<b>${cr.case_id}</b> (${scoreIdx + 1}/${scoreCases.length})<br>${esc(c.question)}`;
+  $("#sc_chunks").innerHTML = (c.gold_chunks || [])
+    .map(g => `<div class="chunk"><b>${g.chunk_id}</b></div>`).join("");
+  $("#sc_answer").innerHTML = `<div class="meta">insufficient_cause: ${cr.insufficient_cause ?? "-"}</div>`
+    + (d.causes || []).map(x => `<div class="chunk"><b>[${x.confidence}]</b> ${esc(x.description)}
+        ${(x.evidence || []).map(e => `<pre>${esc(e.chunk_id)}\n"${esc(e.quote)}"</pre>`).join("")}</div>`).join("")
+    + `<div class="meta">checks: ${(d.checks || []).map(esc).join(" / ")}</div>`;
+  const items = ["evidence_supports_claim", "no_missing_exception", ...(c.judge_items || [])];
+  const saved = humanScores[cr.case_id] || {};
+  $("#sc_items").innerHTML = items.map(it => `
+    <div><label>${it}</label>
+      <button onclick="setScore('${it}',true)" class="${saved[it] === true ? "yes" : ""}">예</button>
+      <button onclick="setScore('${it}',false)" class="${saved[it] === false ? "no" : ""}">아니오</button>
+    </div>`).join("");
+  $("#sc_note").value = saved._note || "";
+}
+window.setScore = (item, val) => {
+  const id = scoreCases[scoreIdx].case_id;
+  humanScores[id] = { ...(humanScores[id] || {}), [item]: val };
+  renderScore();
+};
+$("#sc_save").onclick = async () => {
+  const id = scoreCases[scoreIdx].case_id;
+  humanScores[id] = { ...(humanScores[id] || {}), _note: $("#sc_note").value };
+  await api("/api/human-scores", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(humanScores),
+  });
+  scoreIdx = Math.min(scoreIdx + 1, scoreCases.length - 1);
+  renderScore(); toast("저장됨");
+};
+
+// ── 실행 비교 ──
+async function loadRuns() {
+  const runs = await api("/api/runs");
+  const opts = runs.map(r => `<option>${r}</option>`).join("");
+  $("#runA").innerHTML = opts; $("#runB").innerHTML = opts;
+  if (runs.length > 1) $("#runB").value = runs[runs.length - 1];
+}
+$("#doCompare").onclick = async () => {
+  const [a, b] = await Promise.all([
+    api("/api/run?id=" + encodeURIComponent($("#runA").value)),
+    api("/api/run?id=" + encodeURIComponent($("#runB").value)),
+  ]);
+  const rows = [];
+  const flat = r => Object.fromEntries(r.cases.flatMap(c =>
+    c.checks.map(ck => [`${c.case_id}|${ck.check_id}`, ck.passed])));
+  const fa = flat(a), fb = flat(b);
+  let better = 0, worse = 0;
+  for (const k of new Set([...Object.keys(fa), ...Object.keys(fb)])) {
+    if (fa[k] === fb[k]) continue;
+    const cls = fb[k] ? "flip-better" : "flip-worse";
+    fb[k] ? better++ : worse++;
+    rows.push(`<tr class="${cls}"><td>${k.split("|")[0]}</td><td>${k.split("|")[1]}</td>
+      <td>${fa[k]}</td><td>${fb[k]}</td></tr>`);
+  }
+  $("#cmp").innerHTML = `
+    <p>A: ${a.model} / ${a.prompt_version} / 완전성 ${a.complete} / 통과율 ${a.pass_rate ?? "—"}<br>
+       B: ${b.model} / ${b.prompt_version} / 완전성 ${b.complete} / 통과율 ${b.pass_rate ?? "—"}</p>
+    <p><b>새로 통과 ${better} · 새로 실패 ${worse}</b>
+      ${(!a.complete || !b.complete) ? '<span class="warn">— 불완전한 실행이 포함됐다. 통과율을 비교하지 마라.</span>' : ""}</p>
+    <table><tr><th>문항</th><th>항목</th><th>A</th><th>B</th></tr>${rows.join("")}</table>
+    ${rows.length ? "" : "<p class='meta'>뒤집힌 항목 없음</p>"}`;
+};
+
+(async () => {
+  const s = await api("/api/stats");
+  $("#stats").textContent = ` 청크 ${s.chunks.toLocaleString()} · 코퍼스 ${s.corpus_version}`;
+  await loadEvalset();
+  if (evalset.cases.length) loadCase(evalset.cases[0]);
+})();
+</script>

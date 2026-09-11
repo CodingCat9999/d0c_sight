@@ -29,3 +29,7 @@ data/
 .idea/
 .vscode/
 *.swp
+
+# 평가 실행 결과와 캐시 — 재생성 가능하다. 평가셋 자체는 커밋한다.
+evalset/runs/
+evalset/cache/

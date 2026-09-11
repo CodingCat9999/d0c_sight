@@ -44,14 +44,18 @@ def _case_from(row: dict[str, Any]) -> EvalCase:
     )
 
 
-def load(path: Path) -> EvalSet:
-    raw = json.loads(path.read_text(encoding="utf-8"))
+def load_dict(raw: dict[str, Any]) -> EvalSet:
+    """이미 읽어둔 JSON 으로부터 평가셋을 만든다. 라벨링 도구가 POST 본문에 쓴다."""
     return EvalSet(
         version=raw["version"],
         created=raw["created"],
         corpus_version=raw["corpus_version"],
         cases=tuple(_case_from(r) for r in raw.get("cases", ())),
     )
+
+
+def load(path: Path) -> EvalSet:
+    return load_dict(json.loads(path.read_text(encoding="utf-8")))
 
 
 def save(evalset: EvalSet, path: Path) -> None:

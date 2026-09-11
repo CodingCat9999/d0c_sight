@@ -56,6 +56,16 @@ def quote_is_present(quote: str, body: str) -> bool:
     return _squash(quote) in _squash(body)
 
 
+def can_be_quoted(body: str) -> bool:
+    """이 본문에서 현재 임계값을 통과하는 인용을 뽑을 수 있는가.
+
+    라벨링 도구가 경고를 띄우는 데 쓴다. **경고는 하되 지정을 막지 않는다.**
+    막으면 사람이 그런 청크를 피하게 되고, 그러면 MIN_QUOTE_CHARS 가 부적절해도
+    영원히 드러나지 않는다. 이 임계값 자체가 측정 대상이다(ADR 0005).
+    """
+    return len(_squash(body)) >= MIN_QUOTE_CHARS
+
+
 def _check(
     chunk_id: str, quote: str, bodies: Mapping[str, str], known_ids: Container[str] | None
 ) -> DropReason | None:

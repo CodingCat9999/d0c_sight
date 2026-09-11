@@ -70,7 +70,7 @@ known-first-party = ["d0c_sight"]
 # ─────────────────────────────────────────────────────────────
 [tool.mypy]
 python_version = "3.12"
-files = ["src", "tests", "scripts"]
+files = ["src", "tests", "scripts", "tools"]
 strict = true
 warn_unreachable = true
 warn_no_return = true
