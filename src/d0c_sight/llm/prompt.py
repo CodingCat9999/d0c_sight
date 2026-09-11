@@ -16,6 +16,10 @@ if TYPE_CHECKING:
 
     from d0c_sight.domain.models import Chunk
 
+#: 프롬프트가 바뀌면 올린다. 평가 캐시 키에 들어가므로, 올리지 않으면 다른 프롬프트의
+#: 결과가 재사용되어 측정이 조용히 오염된다.
+PROMPT_VERSION = "p1"
+
 CONTEXT_OPEN = "<context>"
 CONTEXT_CLOSE = "</context>"
 

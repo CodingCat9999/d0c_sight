@@ -27,7 +27,10 @@ ALLOWED_IMPORTS: dict[str, frozenset[str]] = {
     "pipeline": frozenset({"domain", "sources"}),
     # llm 은 청크가 어디서 왔는지 알 필요가 없다. sources 도 pipeline 도 import 하지 않는다.
     "llm": frozenset({"domain"}),
-    "cli": frozenset({"domain", "sources", "pipeline", "llm"}),
+    # evalset 은 진단을 실행해야 하므로 llm 을 안다. 하지만 sources 와 pipeline 은
+    # 모른다 — 청크는 JSONL 로 받지 직접 만들지 않는다.
+    "evalset": frozenset({"domain", "llm"}),
+    "cli": frozenset({"domain", "sources", "pipeline", "llm", "evalset"}),
 }
 
 
