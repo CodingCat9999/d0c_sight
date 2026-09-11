@@ -46,6 +46,13 @@ _DESCRIPTIONS = {
         "Does the answer omit an important exception, condition, or caveat that the "
         "evidence states? Answer yes only if nothing important was omitted."
     ),
+    # 질문이 코퍼스에 없는 버전을 명시한 문항에만 붙인다. 모든 문항에 적용하면 대부분이
+    # "해당 없음" 이 되어 일치율 계산이 왜곡된다. 현재 적용 문항은 c06 과 e05 둘이다.
+    "states_version_limitation": (
+        "The question names a PostgreSQL version, but the evidence covers a different "
+        "version. Does the answer state which version its evidence is based on? "
+        "Answer no if it answers as though the evidence applied to the asked version."
+    ),
 }
 
 JUDGE_SCHEMA: dict[str, Any] = {

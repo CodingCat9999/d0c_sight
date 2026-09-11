@@ -81,6 +81,7 @@ def diagnose(
         response_schema=RESPONSE_SCHEMA,
         thinking_budget=cfg.thinking_budget,
         max_output_tokens=cfg.max_output_tokens,
+        temperature=cfg.temperature,
     )
 
     attempted: list[str] = []
@@ -96,6 +97,7 @@ def diagnose(
                     response_schema=call_base.response_schema,
                     thinking_budget=call_base.thinking_budget,
                     max_output_tokens=call_base.max_output_tokens,
+                    temperature=call_base.temperature,
                 )
             )
         except ProviderError as exc:

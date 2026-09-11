@@ -17,7 +17,17 @@ import time
 from dataclasses import asdict, dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
-from d0c_sight.evalset.grade import CheckId, CheckResult, grade_case
+from d0c_sight.domain.models import (
+    Cause,
+    Confidence,
+    Diagnosis,
+    DiagnosisResult,
+    DroppedEvidence,
+    DropReason,
+    Evidence,
+    GenerationRecord,
+)
+from d0c_sight.evalset.grade import CheckResult, grade_case
 from d0c_sight.evalset.models import CaseType
 from d0c_sight.llm.config import LlmConfig
 from d0c_sight.llm.diagnose import DiagnosisError, diagnose
@@ -159,6 +169,45 @@ def _context_for(case: EvalCase, chunks: Mapping[str, Chunk]) -> list[Chunk]:
     return [chunks[g.chunk_id] for g in case.gold_chunks if g.chunk_id in chunks]
 
 
+def rebuild_result(payload: Mapping[str, Any]) -> DiagnosisResult:
+    """저장된 진단을 도메인 객체로 되돌린다. 채점기가 이것을 다시 채점한다."""
+    d = payload["diagnosis"]
+    rec = payload["record"]
+    return DiagnosisResult(
+        diagnosis=Diagnosis(
+            reasoning=d["reasoning"],
+            causes=tuple(
+                Cause(
+                    description=c["description"],
+                    evidence=tuple(Evidence(**e) for e in c["evidence"]),
+                    confidence=Confidence.parse(c["confidence"]),
+                )
+                for c in d["causes"]
+            ),
+            checks=tuple(d["checks"]),
+            version_basis=d["version_basis"],
+            insufficient_evidence=d["insufficient_evidence"],
+        ),
+        record=GenerationRecord(
+            provider=rec["provider"],
+            model=rec["model"],
+            attempted_models=tuple(rec["attempted_models"]),
+            stop_reason=rec["stop_reason"],
+            input_tokens=rec["input_tokens"],
+            output_tokens=rec["output_tokens"],
+            thinking_tokens=rec["thinking_tokens"],
+            latency_ms=rec["latency_ms"],
+        ),
+        dropped_evidence=tuple(
+            DroppedEvidence(
+                chunk_id=x["chunk_id"], quote=x["quote"], reason=DropReason(x["reason"])
+            )
+            for x in payload["dropped_evidence"]
+        ),
+        model_declared_insufficient=payload["model_declared_insufficient"],
+    )
+
+
 class Throttle:
     """호출 사이에 최소 간격을 둔다. 캐시 적중에는 기다리지 않는다."""
 
@@ -188,32 +237,26 @@ def run_case(
     settings = {
         "thinking_budget": config.thinking_budget,
         "max_output_tokens": config.max_output_tokens,
+        "temperature": config.temperature,
     }
     key = cache_key(case, config.model, PROMPT_VERSION, settings)
     context = _context_for(case, chunks)
 
+    # 캐시에는 **LLM 응답만** 담는다. 채점 결과를 함께 담으면 채점기를 고쳤을 때
+    # 낡은 판정이 조용히 재사용된다. 채점은 공짜이므로 캐시할 이유가 없다.
     if cache is not None:
         hit = cache.get(key)
         if hit is not None:
+            result = rebuild_result(hit["diagnosis"])
             return (
                 CaseResult(
                     case_id=case.case_id,
-                    # CheckId 로 되돌려야 한다. StrEnum 이라 문자열로 두어도 == 비교는
-                    # 통과하므로, 복원을 빠뜨려도 테스트가 조용히 넘어간다.
-                    checks=tuple(
-                        CheckResult(
-                            check_id=CheckId(c["check_id"]),
-                            passed=c["passed"],
-                            detail=c.get("detail", ""),
-                        )
-                        for c in hit["checks"]
-                    ),
-                    insufficient_cause=hit["insufficient_cause"],
-                    retries=hit["retries"],
-                    failed=hit["failed"],
-                    failure_detail=hit.get("failure_detail", ""),
+                    checks=grade_case(case, result, chunks, context),
+                    insufficient_cause=result.insufficient_cause,
+                    retries=hit.get("retries", 0),
+                    failed=False,
                     from_cache=True,
-                    diagnosis=hit.get("diagnosis", {}),
+                    diagnosis=hit["diagnosis"],
                 ),
                 0,
             )
@@ -233,17 +276,16 @@ def run_case(
             log.warning("문항 실패 case=%s 시도=%d/%d", case.case_id, attempt + 1, max_retries + 1)
             continue
 
-        checks = grade_case(case, result, chunks, context)
         payload = CaseResult(
             case_id=case.case_id,
-            checks=checks,
+            checks=grade_case(case, result, chunks, context),
             insufficient_cause=result.insufficient_cause,
             retries=attempt,
             failed=False,
             diagnosis=result.to_dict(),
         )
         if cache is not None:
-            cache.put(key, asdict(payload))
+            cache.put(key, {"diagnosis": payload.diagnosis, "retries": attempt})
         return payload, calls
 
     return (
@@ -289,6 +331,7 @@ def run_evalset(
         settings={
             "thinking_budget": cfg.thinking_budget,
             "max_output_tokens": cfg.max_output_tokens,
+            "temperature": cfg.temperature,
             "max_retries": max_retries,
             "min_call_interval_s": interval_s,
         },

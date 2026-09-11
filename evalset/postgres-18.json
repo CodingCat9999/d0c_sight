@@ -96,22 +96,34 @@
     },
     {
       "case_id": "e05",
-      "question": "ERROR: could not resize shared memory segment to 182656 bytes: No space left on device",
+      "question": "PostgreSQL 11.6 standby 에서 ERROR: canceling statement due to conflict with recovery 가 계속 난다",
       "version": "18.6",
       "case_type": "error",
       "search_axis": "keyword_only",
       "gold_chunks": [
         {
-          "chunk_id": "runtime-config-resource#RUNTIME-CONFIG-RESOURCE-MEMORY:5",
-          "content_sha256": "56e9328985667f1a"
+          "chunk_id": "runtime-config-replication#RUNTIME-CONFIG-REPLICATION-STANDBY:5",
+          "content_sha256": "f370198a453dcf5d"
+        },
+        {
+          "chunk_id": "hot-standby#HOT-STANDBY-CONFLICT:4",
+          "content_sha256": "040f1ca415317392"
+        },
+        {
+          "chunk_id": "runtime-config-replication#RUNTIME-CONFIG-REPLICATION-STANDBY:8",
+          "content_sha256": "929d491bb4155c24"
         }
       ],
       "split": "holdout",
       "provenance": "mailing_list",
-      "rationale": "정답이 에러 문자열과 직접 연결되지 않는다. 병렬 쿼리 작업 메모리가 원인이다.",
-      "source_url": "https://www.postgresql.org/message-id/CA+hUKGKfDF+Z-32ejxVjunTqkAaF-mznOAy30dhS9KEHsXjVzA@mail.gmail.com",
-      "traps": [],
-      "judge_items": [],
+      "rationale": "복구 충돌. 근거가 문서에 명확히 있고(hot-standby 충돌 설명 + 두 파라미터) 에러 문자열도 정확 매칭된다. 질문이 11.6 을 명시하지만 코퍼스는 18.6 뿐이라 버전 한계를 밝혀야 한다 — c06 과 함께 states_version_limitation 을 적용받는 두 문항 중 하나다.\n원래 이 자리에는 'could not resize shared memory segment' 문항이 있었으나 교체했다. 실측 결과 코퍼스에 'resize shared memory' 0건, '/dev/shm' 0건이고 정답으로 붙였던 work_mem 본문에 병렬·DSM 언급이 전혀 없었다. 확신 없는 정답 라벨은 평가셋 전체를 오염시킨다.",
+      "source_url": "https://www.postgresql.org/message-id/390F36A7-26FB-467F-9718-07E12AA3C962@gmail.com",
+      "traps": [
+        "version_dependent"
+      ],
+      "judge_items": [
+        "states_version_limitation"
+      ],
       "needs_review": false,
       "review_note": ""
     },
@@ -299,7 +311,7 @@
     },
     {
       "case_id": "c04",
-      "question": "컨테이너에서 PostgreSQL 메모리 설정은 무엇을 기준으로 잡나?",
+      "question": "서버 메모리를 PostgreSQL 설정에 어떻게 나눠 잡아야 하나?",
       "version": "18.6",
       "case_type": "config",
       "search_axis": "semantic_only",
@@ -315,7 +327,7 @@
       ],
       "split": "improve",
       "provenance": "mailing_list",
-      "rationale": "문서에 컨테이너 언급이 없다. 일반 지침으로 답하되 한계를 밝히는지 본다.",
+      "rationale": "파라미터명을 모르는 상태의 배분 질문. 원래 '컨테이너에서' 로 물었으나 n03(Docker, no_answer)과 경계가 겹쳐 채점이 흔들릴 수 있어 컨테이너를 뺐다. 메모에 '문서에 컨테이너 언급이 없다' 고 써놓고 정답 청크를 지정한 모순도 함께 해소된다.",
       "source_url": "https://www.postgresql.org/message-id/CAGbX52FendzTdDgTrs_DqF39Oj6pedigmc4Pu7GXy7VUtPxGVw@mail.gmail.com",
       "traps": [],
       "judge_items": [],
@@ -371,12 +383,14 @@
       ],
       "split": "holdout",
       "provenance": "mailing_list",
-      "rationale": "질문에 버전이 명시됐지만 코퍼스는 18.6 뿐이다. 버전 한계를 밝히는지 본다.",
+      "rationale": "질문에 버전이 명시됐지만 코퍼스는 18.6 뿐이다. 버전 한계를 밝히는지 본다. 이것을 재는 기계 채점 항목이 없다 — version_matches 는 컨텍스트 청크의 버전만 보므로 항상 통과한다. judge 항목 states_version_limitation 이 이 문항과 e05 에만 적용된다.",
       "source_url": "https://www.postgresql.org/message-id/LO0P265MB2700590113FEC61BE8B660F3F9F32@LO0P265MB2700.GBRP265.PROD.OUTLOOK.COM",
       "traps": [
         "version_dependent"
       ],
-      "judge_items": [],
+      "judge_items": [
+        "states_version_limitation"
+      ],
       "needs_review": false,
       "review_note": ""
     },

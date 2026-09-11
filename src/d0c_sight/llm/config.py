@@ -22,6 +22,14 @@ DEFAULT_THINKING_BUDGET = 0
 
 DEFAULT_MAX_OUTPUT_TOKENS = 4096
 
+#: 샘플링 온도. 0 으로 고정한다.
+#:
+#: 지정하지 않으면 공급사 기본값(비결정적)이 쓰인다. 실제로 같은 20문항을 같은 모델·
+#: 같은 프롬프트로 두 번 돌렸더니 통과율이 90% 와 75% 로 갈렸다. 그 상태에서는 어떤
+#: 변경이 개선인지 잡음인지 구별할 수 없다. 0 이어도 완전한 결정론은 아니지만 변동
+#: 폭은 크게 줄어든다.
+DEFAULT_TEMPERATURE = 0.0
+
 
 @dataclass(frozen=True, slots=True)
 class LlmConfig:
@@ -32,6 +40,7 @@ class LlmConfig:
     fallback_models: tuple[str, ...] = DEFAULT_FALLBACKS
     thinking_budget: int = DEFAULT_THINKING_BUDGET
     max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS
+    temperature: float = DEFAULT_TEMPERATURE
     api_key_env: str = "GEMINI_API_KEY"
 
     @property
@@ -70,6 +79,7 @@ class ProviderCall:
     response_schema: dict[str, object] = field(default_factory=dict)
     thinking_budget: int = DEFAULT_THINKING_BUDGET
     max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS
+    temperature: float = DEFAULT_TEMPERATURE
 
 
 @dataclass(frozen=True, slots=True)

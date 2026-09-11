@@ -66,6 +66,7 @@ class GeminiProvider:
             response_schema=call.response_schema or None,
             thinking_config=types.ThinkingConfig(thinking_budget=call.thinking_budget),
             max_output_tokens=call.max_output_tokens,
+            temperature=call.temperature,
             # 도구를 쓰지 않는다. 끄지 않으면 SDK 가 매 호출마다 AFC 권고 경고를 낸다.
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         )

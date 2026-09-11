@@ -26,6 +26,7 @@ class CheckId(StrEnum):
     CITED_IDS_EXIST = "cited_ids_exist"
     QUOTES_VERIFIED = "quotes_verified"
     GOLD_CITED = "gold_cited"
+    ALL_GOLD_CITED = "all_gold_cited"
     VERSION_MATCHES = "version_matches"
     NO_ANSWER_DECLINED = "no_answer_declined"
 
@@ -104,14 +105,27 @@ def grade_case(
     gold_ids = {g.chunk_id for g in case.gold_chunks}
     cited_ids = {cid for cid, _ in cited}
     hit = gold_ids & cited_ids
+    missing = gold_ids - cited_ids
     checks.append(
         CheckResult(
             CheckId.GOLD_CITED,
             passed=bool(hit),
             detail=f"정답 {len(hit)}/{len(gold_ids)} 인용"
-            + (f", 누락 {sorted(gold_ids - cited_ids)}" if gold_ids - cited_ids else ""),
+            + (f", 누락 {sorted(missing)}" if missing else ""),
         )
     )
+    # 정답이 하나뿐이면 gold_cited 와 같은 것을 두 번 세게 되므로 매기지 않는다.
+    # 정답이 여럿인 문항에서 "하나라도 찾았는가" 와 "전부 찾았는가" 는 다른 질문이고,
+    # multi_chunk 문항이 검증하려는 것은 후자다. gold_cited 만으로는 그것을 재지 못한다.
+    if len(gold_ids) > 1:
+        checks.append(
+            CheckResult(
+                CheckId.ALL_GOLD_CITED,
+                passed=not missing,
+                detail=f"{len(hit)}/{len(gold_ids)}"
+                + (f", 누락 {sorted(missing)}" if missing else ""),
+            )
+        )
 
     # 컨텍스트에 넣은 청크의 버전과 문항의 버전이 어긋나면 다른 버전의 답을 재는 셈이다.
     ctx_versions = {c.ref.version.full for c in context}

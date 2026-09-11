@@ -254,7 +254,7 @@ def test_k_is_recorded_with_the_score() -> None:
 
 # ─── 캐시 키 ──────────────────────────────────────────────────
 
-SETTINGS = {"thinking_budget": 0, "max_output_tokens": 4096}
+SETTINGS = {"thinking_budget": 0, "max_output_tokens": 4096, "temperature": 0.0}
 
 
 def test_same_inputs_produce_the_same_key() -> None:
@@ -577,3 +577,66 @@ def test_agreement_is_none_when_nothing_was_compared() -> None:
 def test_agreement_is_tied_to_the_judge_prompt_version() -> None:
     """프롬프트가 바뀌면 과거 일치율을 그대로 믿을 수 없다."""
     assert judge.agreement({}, {})["judge_prompt_version"] == judge.JUDGE_PROMPT_VERSION
+
+
+# ─── 여러 정답 청크 ───────────────────────────────────────────
+
+
+def _multi_case() -> EvalCase:
+    return gold_case(
+        gold_chunks=(
+            GoldChunk(GOLD_ID, content_hash(make_chunk().quotable)),
+            GoldChunk("doc#SEC:2", "deadbeef"),
+        )
+    )
+
+
+def test_single_gold_case_has_no_all_gold_check() -> None:
+    """정답이 하나면 gold_cited 와 같은 것을 두 번 세게 된다."""
+    graded = _graded(gold_case(), payload_with())
+    assert CheckId.ALL_GOLD_CITED.value not in graded
+
+
+def test_partial_citation_passes_gold_cited_but_fails_all_gold() -> None:
+    """multi_chunk 문항이 검증하려는 것은 '전부 찾았는가' 다.
+
+    gold_cited 만 있으면 여러 청크가 필요한 문항에서 하나만 맞아도 통과한다 —
+    그 문항이 검증하려던 것을 아무것도 재지 않는 상태가 된다.
+    """
+    graded = _graded(_multi_case(), payload_with())
+
+    assert graded[CheckId.GOLD_CITED.value] is True
+    assert graded[CheckId.ALL_GOLD_CITED.value] is False
+
+
+# ─── 샘플링 재현성 ────────────────────────────────────────────
+
+
+def test_temperature_is_pinned_to_zero() -> None:
+    """지정하지 않으면 공급사 기본값(비결정적)이다.
+
+    실제로 같은 20문항을 같은 모델·프롬프트로 두 번 돌렸더니 통과율이 90% 와 75% 로
+    갈렸다. 그 상태에서는 무엇이 개선인지 알 수 없다.
+    """
+    assert LlmConfig().temperature == 0.0
+
+
+def test_temperature_reaches_the_provider() -> None:
+    provider = FakeProvider(payload=payload_with())
+    diagnose("err", [make_chunk()], provider, LlmConfig(temperature=0.0))
+    assert provider.calls[0].temperature == 0.0
+
+
+def test_run_records_the_sampling_setting() -> None:
+    """무엇으로 쟀는지가 결과에 남아야 한다."""
+    run = run_evalset(
+        an_evalset(gold_case()), FakeProvider(payload=payload_with()), _chunks(), interval_s=0
+    )
+    assert run.settings["temperature"] == 0.0
+
+
+def test_temperature_is_part_of_the_cache_key() -> None:
+    """온도가 다르면 다른 실행이다. 캐시가 섞이면 안 된다."""
+    base = cache_key(gold_case(), "m", PROMPT_VERSION, SETTINGS)
+    other = cache_key(gold_case(), "m", PROMPT_VERSION, {**SETTINGS, "temperature": 1.0})
+    assert base != other
