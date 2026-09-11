@@ -357,3 +357,27 @@ def test_prompt_states_that_missing_error_text_is_not_a_refusal_reason() -> None
     text = system_instruction("PostgreSQL 18.6")
     assert "Absence of the literal error text" in text
     assert "does NOT" in text
+
+
+def test_serialised_result_includes_the_insufficiency_reason() -> None:
+    """asdict() 는 property 를 무시한다. 저장 표현에 반드시 실려야 한다.
+
+    동작은 하는데 결과 파일에 남지 않는 상태였고, 실제로 저장해보기 전에는
+    드러나지 않았다. 평가가 이 값을 읽는다.
+    """
+    provider = FakeProvider(payload=payload_with(chunk_id="ghost#X:1"))
+    result = diagnose("err", [make_chunk()], provider, LlmConfig())
+
+    data = result.to_dict()
+    assert data["insufficient_cause"] == "verification_removed_all"
+    assert data["has_verified_evidence"] is False
+    assert data["record"]["model"] == LlmConfig().model
+
+
+def test_serialised_result_survives_json_round_trip() -> None:
+    provider = FakeProvider(payload=payload_with())
+    result = diagnose("err", [make_chunk()], provider, LlmConfig())
+
+    restored = json.loads(json.dumps(result.to_dict(), ensure_ascii=False))
+    assert restored["insufficient_cause"] is None
+    assert restored["diagnosis"]["causes"][0]["evidence"][0]["chunk_id"] == "doc#SEC:1"

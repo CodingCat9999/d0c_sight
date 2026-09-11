@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import asdict
 from pathlib import Path
 
 from d0c_sight.pipeline.run import chunk_documents, read_jsonl, write_jsonl
@@ -93,7 +92,7 @@ def _diagnose(args: argparse.Namespace) -> int:
         return 1
 
     if args.json:
-        print(json.dumps(asdict(result), ensure_ascii=False, indent=2))
+        print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
         return 0
 
     _print_result(result, len(context))

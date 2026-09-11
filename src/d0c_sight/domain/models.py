@@ -9,8 +9,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from enum import StrEnum
+from typing import Any
 
 
 class BlockKind(StrEnum):
@@ -286,3 +287,15 @@ class DiagnosisResult:
         if self.model_declared_insufficient:
             return "model_declined"
         return "verification_removed_all" if self.dropped_evidence else "no_causes_returned"
+
+    def to_dict(self) -> dict[str, Any]:
+        """저장용 표현.
+
+        `asdict()` 를 그대로 쓰면 안 된다. `insufficient_cause` 는 property 라서
+        dataclasses 가 무시하고, 결과 파일에 남지 않는다. 동작은 하는데 기록되지
+        않는 상태였고, 실제로 저장해보기 전에는 드러나지 않았다.
+        """
+        data = asdict(self)
+        data["insufficient_cause"] = self.insufficient_cause
+        data["has_verified_evidence"] = self.has_verified_evidence
+        return data
