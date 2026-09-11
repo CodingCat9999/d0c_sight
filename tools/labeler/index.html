@@ -302,10 +302,22 @@ function renderScore() {
     + (d.causes || []).map(x => `<div class="chunk"><b>[${x.confidence}]</b> ${esc(x.description)}
         ${(x.evidence || []).map(e => `<pre>${esc(e.chunk_id)}\n"${esc(e.quote)}"</pre>`).join("")}</div>`).join("")
     + `<div class="meta">checks: ${(d.checks || []).map(esc).join(" / ")}</div>`;
+  const GUIDE = {
+    evidence_supports_claim:
+      "답변의 각 주장이 인용된 근거로 뒷받침되는가. 사실이지만 근거에 없는 내용이 " +
+      "있으면 아니오.",
+    no_missing_exception:
+      "① 근거 청크에 '다만/단/제외/~인 경우는' 같은 단서가 명시적으로 있는가? " +
+      "없으면 빠뜨릴 예외가 없으므로 '예'. ② 있으면 답변이 그것을 언급했는가로 판정. " +
+      "'중요한' 을 주관적으로 재지 말 것.",
+    states_version_limitation:
+      "질문이 코퍼스에 없는 버전을 말한다. 답변이 '이 근거는 어느 버전 기준' 인지 밝혔는가.",
+  };
   const items = ["evidence_supports_claim", "no_missing_exception", ...(c.judge_items || [])];
   const saved = humanScores[cr.case_id] || {};
   $("#sc_items").innerHTML = items.map(it => `
     <div><label>${it}</label>
+      ${GUIDE[it] ? `<div class="meta" style="margin-bottom:3px">${esc(GUIDE[it])}</div>` : ""}
       <button onclick="setScore('${it}',true)" class="${saved[it] === true ? "yes" : ""}">예</button>
       <button onclick="setScore('${it}',false)" class="${saved[it] === false ? "no" : ""}">아니오</button>
     </div>`).join("");
